@@ -1,0 +1,349 @@
+ 
+Bibtex (bib) file for the thesis style document.
+ 
+@string{Knuth="Donald E. Knuth"}
+ 
+@book{book,
+   author = knuth,
+   title = "The {\TeX} book",
+   publisher = "Addison-Wesley",
+   year = 1984}
+ 
+@book{Tbook,
+   author = knuth,
+   title = "{\TeX}: The Program",
+   publisher = "Addison-Wesley",
+   year = 1986}
+ 
+@book{Metafont,
+   author = knuth,
+   title = "The Metafont book",
+   publisher = "Addison-Wesley",
+   year = 1986}
+ 
+@book{CMT,
+   author = knuth,
+   title = "Computer Modern Typefaces",
+   publisher = "Addison-Wesley",
+   year = 1986}
+ 
+@book{Lbook,
+   author = "Leslie Lamport",
+   title = "{\LaTeX}: A Document Preparation System",
+   edition = "2nd",
+   publisher = "Addison-Wesley",
+   year = 1994}
+ 
+@book{companion,
+   author = "M{ichel} Goossens and F{rank} Mittelbach and A{lexander} Samarin",
+   title = "The {\LaTeX} Companion",
+   publisher = "Addison-Wesley",
+   year = 1994}
+ 
+@article{TUG:h-l,
+  author = "Editor",
+  title = "Hyphenation Exception Log",
+  journal = "TUGboat",
+  volume = 7,
+  number = 3,
+  year = 1986,
+  pages = "145"}
+ 
+ 
+@book{Hamlet,
+   author = "William Shakespeare",
+   title = "Hamlet",
+   publisher = "F.S.~Crofts~\&~Co., Inc.",
+   address = "NY",
+   year = 1946,
+   note = "Act~I, Scene~3, Lines~70-72, are apropos."}
+ 
+Following author fields is not standard
+@book{JTeX,
+   author = "{Spivak, M.D., Ph.D.}",
+   title = "The Joy of {\TeX}",
+   publisher = "American Mathematical Society",
+   address = "RI",
+   year = 1986}
+ 
+@book{PCTeX,
+   author = "{Spivak, M.D., Ph.D.}",
+   title = "PC{\TeX}\ Manual",
+   publisher = "Personal {\TeX}, Inc.",
+   address = "CA",
+   year = 1985}
+ 
+
+@article{salim2015linux,
+  title={Linux traffic control classifier-action subsystem architecture},
+  author={Salim, Jamal Hadi},
+  journal={Proceedings of Netdev 0.1},
+  year={2015}
+}
+
+@article{borkmann2016getting,
+  title={On getting tc classifier fully programmable with cls bpf},
+  author={Borkmann, Daniel},
+  journal={Proceedings of netdev},
+  volume={1},
+  year={2016}
+}
+
+@inproceedings{bertin2017xdp,
+  title={XDP in practice: integrating XDP into our DDoS mitigation pipeline},
+  author={Bertin, Gilberto},
+  booktitle={Technical Conference on Linux Networking, Netdev},
+  volume={2},
+  pages={1--5},
+  year={2017},
+  organization={The NetDev Society}
+}
+
+@inproceedings{10.1145/3281411.3281443,
+author = {H\o{}iland-J\o{}rgensen, Toke and Brouer, Jesper Dangaard and Borkmann, Daniel and Fastabend, John and Herbert, Tom and Ahern, David and Miller, David},
+title = {The eXpress data path: fast programmable packet processing in the operating system kernel},
+year = {2018},
+isbn = {9781450360807},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3281411.3281443},
+doi = {10.1145/3281411.3281443},
+abstract = {Programmable packet processing is increasingly implemented using kernel bypass techniques, where a userspace application takes complete control of the networking hardware to avoid expensive context switches between kernel and userspace. However, as the operating system is bypassed, so are its application isolation and security mechanisms; and well-tested configuration, deployment and management tools cease to function.To overcome this limitation, we present the design of a novel approach to programmable packet processing, called the eXpress Data Path (XDP). In XDP, the operating system kernel itself provides a safe execution environment for custom packet processing applications, executed in device driver context. XDP is part of the mainline Linux kernel and provides a fully integrated solution working in concert with the kernel's networking stack. Applications are written in higher level languages such as C and compiled into custom byte code which the kernel statically analyses for safety, and translates into native instructions.We show that XDP achieves single-core packet processing performance as high as 24 million packets per second, and illustrate the flexibility of the programming model through three example use cases: layer-3 routing, inline DDoS protection and layer-4 load balancing.},
+booktitle = {Proceedings of the 14th International Conference on Emerging Networking EXperiments and Technologies},
+pages = {54–66},
+numpages = {13},
+keywords = {BPF, DPDK, XDP, programmable networking},
+location = {Heraklion, Greece},
+series = {CoNEXT '18}
+}
+
+@INPROCEEDINGS{8850758,
+  author={Miano, Sebastiano and Bertrone, Matteo and Risso, Fulvio and Tumolo, Massimo and Bernal, Mauricio Vásquez},
+  booktitle={2018 IEEE 19th International Conference on High Performance Switching and Routing (HPSR)}, 
+  title={Creating Complex Network Services with eBPF: Experience and Lessons Learned}, 
+  year={2018},
+  volume={},
+  number={},
+  pages={1-8},
+  keywords={Kernel;Complex networks;Linux;Band-pass filters;Task analysis;Virtual machining;Data processing;eBPF;XDP;Linux;network functions;NFV;dataplane},
+  doi={10.1109/HPSR.2018.8850758}}
+
+@article{10.1145/3371038,
+author = {Vieira, Marcos A. M. and Castanho, Matheus S. and Pac\'{\i}fico, Racyus D. G. and Santos, Elerson R. S. and J\'{u}nior, Eduardo P. M. C\^{a}mara and Vieira, Luiz F. M.},
+title = {Fast Packet Processing with eBPF and XDP: Concepts, Code, Challenges, and Applications},
+year = {2020},
+issue_date = {January 2021},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {53},
+number = {1},
+issn = {0360-0300},
+url = {https://doi.org/10.1145/3371038},
+doi = {10.1145/3371038},
+abstract = {Extended Berkeley Packet Filter (eBPF) is an instruction set and an execution environment inside the Linux kernel. It enables modification, interaction, and kernel programmability at runtime. eBPF can be used to program the eXpress Data Path (XDP), a kernel network layer that processes packets closer to the NIC for fast packet processing. Developers can write programs in C or P4 languages and then compile to eBPF instructions, which can be processed by the kernel or by programmable devices (e.g., SmartNICs). Since its introduction in 2014, eBPF has been rapidly adopted by major companies such as Facebook, Cloudflare, and Netronome. Use cases include network monitoring, network traffic manipulation, load balancing, and system profiling. This work aims to present eBPF to an inexpert audience, covering the main theoretical and fundamental aspects of eBPF and XDP, as well as introducing the reader to simple examples to give insight into the general operation and use of both technologies.},
+journal = {ACM Comput. Surv.},
+month = feb,
+articleno = {16},
+numpages = {36},
+keywords = {Computer networking, network functions, packet processing}
+}
+
+@INPROCEEDINGS{9165454,
+  author={Kostopoulos, Nikos and Kalogeras, Dimitris and Maglaris, Vasilis},
+  booktitle={2020 6th IEEE Conference on Network Softwarization (NetSoft)}, 
+  title={Leveraging on the XDP Framework for the Efficient Mitigation of Water Torture Attacks within Authoritative DNS Servers}, 
+  year={2020},
+  volume={},
+  number={},
+  pages={287-291},
+  abstract={In this paper we utilize XDP for DNS Deep Packet Inspection (DPI) in order to mitigate Water Torture attacks at the NIC driver level of Authoritative DNS Servers. Our approach may benefit DNS Administrators who wish to filter attack traffic within their DNS infrastructure and avoid the latency overhead and additional costs imposed by external cloud scrubbing services. Our schema does not depend on specialized hardware and does not blacklist entire domain name suffices, hence does not block legitimate requests. Packets are intercepted by XDP that identifies messages of DNS requests for further processing. Requested names are extracted from the message payload and categorized based on their validity. Valid names are forwarded to the user space to be resolved, whilst invalid ones are dropped within the Linux kernel at an early stage without downgrading the DNS service. Names are classified using Bloom Filters that map DNS zone contents in a memory efficient manner. These probabilistic data structures are free of false negatives and therefore valid DNS requests are never dropped. We provide a proof of concept setup to test our schema under a DDoS attack scenario and assess how mitigation performance is affected by DPI on DNS requests. Our experiments verify that using XDP significantly increases the throughput of valid DNS responses compared to user space alternatives. In conclusion, XDP emerges as a promising solution for the mitigation of Water Torture attacks against DNS servers.},
+  keywords={Computer crime;Kernel;Filtering;Servers;Hafnium;Hardware;Dns Water Torture;eXpress Data Path (XDP);Data Plane Programmability;Deep Packet Inspection;Bloom Filters},
+  doi={10.1109/NetSoft48620.2020.9165454},
+  ISSN={},
+  month={June},}
+
+
+@article{steadman2021dnsxp,
+  title={DNSxP: Enhancing data exfiltration protection through data plane programmability},
+  author={Steadman, Jacob and Scott-Hayward, Sandra},
+  journal={Computer Networks},
+  volume={195},
+  pages={108174},
+  year={2021},
+  publisher={Elsevier}
+}
+
+
+
+
+@article{apt-process,
+    author = {Zimba, Aaron and Chishimba, Mumbi},
+    year = {2017},
+    month = {12},
+    pages = {51 - 56},
+    title = {Exploitation of DNS Tunneling for Optimization of Data Exfiltration in Malware-free APT Intrusions},
+    volume = {1},
+    journal = {Zambia ICT Journal},
+    doi = {10.33260/zictjournal.v1i1.26}
+}
+
+
+@inproceedings{Das,
+author = {Das, Anirban and Shen, Min-Yi and Shashanka, Madhu and Wang, Jisheng},
+year = {2017},
+month = {12},
+pages = {737-742},
+title = {Detection of Exfiltration and Tunneling over DNS},
+doi = {10.1109/ICMLA.2017.00-71}
+}
+
+
+@inproceedings{8717806d,
+  author={Ahmed, Jawad and Gharakheili, Hassan Habibi and Raza, Qasim and Russell, Craig and Sivaraman, Vijay},
+  booktitle={2019 IFIP/IEEE Symposium on Integrated Network and Service Management (IM)}, 
+  title={Real-Time Detection of DNS Exfiltration and Tunneling from Enterprise Networks}, 
+  year={2019},
+  volume={},
+  number={},
+  pages={649-653},
+  keywords={Real-time systems;Malware;Vegetation;Tools;Tunneling;Organizations;Credit cards},
+  doi={}}
+
+@inproceedings{10.1145/3230833.3233278,
+author = {Mathas, Christos M. and Segou, Olga E. and Xylouris, Georgios and Christinakis, Dimitris and Kourtis, Michail-Alexandros and Vassilakis, Costas and Kourtis, Anastasios},
+title = {Evaluation of Apache Spot's machine learning capabilities in an SDN/NFV enabled environment},
+year = {2018},
+isbn = {9781450364485},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3230833.3233278},
+doi = {10.1145/3230833.3233278},
+abstract = {Software Defined Networking (SDN) and Network Function Virtualisation (NFV) are transforming modern networks towards a service-oriented architecture. At the same time, the cybersecurity industry is rapidly adopting Machine Learning (ML) algorithms to improve detection and mitigation of complex attacks. Traditional intrusion detection systems perform signature-based detection, based on well-known malicious traffic patterns that signify potential attacks. The main drawback of this method is that attack patterns need to be known in advance and signatures must be preconfigured. Hence, typical systems fail to detect a zero-day attack or an attack with unknown signature. This work considers the use of machine learning for advanced anomaly detection, and specifically deploys the Apache Spot ML framework on an SDN/NFV-enabled testbed running cybersecurity services as Virtual Network Functions (VNFs). VNFs are used to capture traffic for ingestion by the ML algorithm and apply mitigation measures in case of a detected anomaly. Apache Spot utilises Latent Dirichlet Allocation to identify anomalous traffic patterns in Netflow, DNS and proxy data. The overall performance of Apache Spot is evaluated by deploying Denial of Service (Slowloris, BoNeSi) and a Data Exfiltration attack (iodine).},
+booktitle = {Proceedings of the 13th International Conference on Availability, Reliability and Security},
+articleno = {52},
+numpages = {10},
+keywords = {Software Defined Networking, SHIELD Project, Penetration Testing, Network Function Virtualisation, Machine Learning, Latent Dirichlet Allocation, Apache Spot},
+location = {Hamburg, Germany},
+series = {ARES '18}
+}
+
+@article{DBLP:journals/corr/abs-1709-08395,
+  author       = {Asaf Nadler and
+                  Avi Aminov and
+                  Asaf Shabtai},
+  title        = {Detection of Malicious and Low Throughput Data Exfiltration Over the
+                  {DNS} Protocol},
+  journal      = {CoRR},
+  volume       = {abs/1709.08395},
+  year         = {2017},
+  url          = {http://arxiv.org/abs/1709.08395},
+  eprinttype    = {arXiv},
+  eprint       = {1709.08395},
+  timestamp    = {Mon, 13 Aug 2018 16:46:49 +0200},
+  biburl       = {https://dblp.org/rec/journals/corr/abs-1709-08395.bib},
+  bibsource    = {dblp computer science bibliography, https://dblp.org}
+}
+
+
+
+@INPROCEEDINGS{9486400,
+  author={Aurisch, Thorsten and Chacón, Paula Caballero and Jacke, Andreas},
+  booktitle={2021 International Conference on Military Communication and Information Systems (ICMCIS)}, 
+  title={Mobile cyber defense agents for low throughput DNS-based data exfiltration detection in military networks}, 
+  year={2021},
+  volume={},
+  number={},
+  pages={1-8},
+  keywords={Military communication;Protocols;Mobile agents;Machine learning;Tunneling;Throughput;Security;Mobile agent;tactical networks;migration;replication;DNS;unauthorized data exfiltration;machine learning;c5.0 classifier},
+  doi={10.1109/ICMCIS52405.2021.9486400}}
+
+
+@article{haider2024c2,
+  title={C2-Eye: framework for detecting command and control (C2) connection of supply chain attacks},
+  author={Haider, Raja Zeeshan and Aslam, Baber and Abbas, Haider and Iqbal, Zafar},
+  journal={International Journal of Information Security},
+  pages={1--15},
+  year={2024},
+  publisher={Springer}
+}
+
+
+@inproceedings{sivakorn2019countering,
+  author={Sivakorn, Suphannee and Jee, Khae Hawn and Sun, Yulong and Korts-P{\"a}rn, Livia and Li, Zheng and Lumezanu, Cristian and Wu, Zhiyun and Tang, Liangzhen and Li, Ding},
+  title={Countering malicious processes with process-DNS association},
+  booktitle={NDSS},
+  year={2019}
+}
+
+@inproceedings{jawad2021identifying,
+  title={Identifying DNS exfiltration based on lexical attributes of query name},
+  author={Jawad, Iram and Ahmed, Jawad and Razzak, Imran and Doss, Robin},
+  booktitle={2021 International Joint Conference on Neural Networks (IJCNN)},
+  pages={1--7},
+  year={2021},
+  organization={IEEE}
+}
+
+@misc{ziza2023dns,
+  author       = {Ziza, Kristijan and Vuletić, Pavle and Tadić, Predrag},
+  title        = {DNS Exfiltration Dataset},
+  year         = {2023},
+  publisher    = {Mendeley Data},
+  version      = {V3},
+  doi          = {10.17632/c4n7fckkz3.3},
+}
+
+@article{ZHAN2022108919,
+title = {Detecting DNS over HTTPS based data exfiltration},
+journal = {Computer Networks},
+volume = {209},
+pages = {108919},
+year = {2022},
+issn = {1389-1286},
+doi = {https://doi.org/10.1016/j.comnet.2022.108919},
+url = {https://www.sciencedirect.com/science/article/pii/S1389128622001104},
+author = {Mengqi Zhan and Yang Li and Guangxi Yu and Bo Li and Weiping Wang},
+keywords = {DNS over HTTPS, DNS tunneling, Data exfiltration, Detection, TLS fingerprinting},
+abstract = {DNS is often used by attackers as a covert channel for data exfiltration, also known as DNS tunneling. Since the plaintext DNS lookup leads to privacy issues, DNS over HTTPS (DoH) has recently been standardized and deployed. DoH encapsulates DNS in HTTPS to encrypt DNS traffic between clients and recursive resolvers. Attackers can also use DoH for subtle data exfiltration. However, existing DNS tunneling detection methods for plaintext DNS are usually ineffective for DoH tunneling. In this paper, we propose a method to detect DoH-based data exfiltration. We analyze TLS fingerprints of DoH clients and build classifiers with flow-based features to detect DoH tunneling. Our experiment discusses the influence of various factors on the detection results in detail, including adversarial considerations by exploring the potential evasion. Experimental results demonstrate that the proposed method is effective, and it is very difficult to evade detection due to the difficulty of feature imitation. Besides, our method can still provide the defender with helpful information for attack investigation even if the attacker evades detection.}
+}
+
+@inproceedings{bilge2011exposure,
+  title={EXPOSURE: Finding Malicious Domains Using Passive DNS Analysis.},
+  author={Bilge, Leyla and Kirda, Engin and Kruegel, Christopher and Balduzzi, Marco},
+  booktitle={Ndss},
+  pages={1--17},
+  year={2011}
+}
+
+@inproceedings{antonakakis2010building,
+  title={Building a dynamic reputation system for $\{$DNS$\}$},
+  author={Antonakakis, Manos and Perdisci, Roberto and Dagon, David and Lee, Wenke and Feamster, Nick},
+  booktitle={19th USENIX Security Symposium (USENIX Security 10)},
+  year={2010}
+}
+
+@article{ozery2023information,
+  title={Information-Based Heavy Hitters for Real-Time DNS Data Exfiltration Detection and Prevention},
+  author={Ozery, Yarin and Nadler, Asaf and Shabtai, Asaf},
+  journal={arXiv preprint arXiv:2307.02614},
+  year={2023}
+}
+
+@inproceedings{bertrone2018accelerating,
+  title={Accelerating linux security with ebpf iptables},
+  author={Bertrone, Matteo and Miano, Sebastiano and Risso, Fulvio and Tumolo, Massimo},
+  booktitle={Proceedings of the ACM SIGCOMM 2018 Conference on Posters and Demos},
+  pages={108--110},
+  year={2018}
+}
+
+@INPROCEEDINGS{8725640,
+  author={Steadman, Jacob and Scott-Hayward, Sandra},
+  booktitle={2018 IEEE Conference on Network Function Virtualization and Software Defined Networks (NFV-SDN)}, 
+  title={DNSxD: Detecting Data Exfiltration Over DNS}, 
+  year={2018},
+  volume={},
+  number={},
+  pages={1-6},
+  keywords={Servers;Tools;Protocols;Computer crime;Feature extraction;Conferences},
+  doi={10.1109/NFV-SDN.2018.8725640}}
