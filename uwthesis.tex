@@ -73,6 +73,9 @@
 \usepackage{array}
 \usepackage{graphicx}
 \usepackage{subcaption}
+\usepackage{tabularx}
+\usepackage[table]{xcolor}
+\usepackage{multirow}
 \newenvironment{demo}
   {\begin{alltt}\leftskip3em
      \def\\{\ttfamily\char`\\}%
@@ -334,7 +337,7 @@ Based on current literature, \citeauthor{steadman2021dnsxp} presents the only as
 
 \section{Machine Learning for Detecting DNS Data Exfiltration}
 Advancements in network security have significantly enhanced the detection of DNS data exfiltration, often leveraging machine learning to analyze packet patterns and payloads. Many solutions combine DPI with anomaly-based analysis of DNS traffic volume and timing, detecting potential exfiltration attempts via DNS firewalls or integrated intrusion detection systems. For C2-based exfiltration, \citeauthor{apt-process} focuses on behavioral analysis, using system resources like PowerShell and Windows backdoors alongside DNS tunneling for APT detection \cite{apt-process}. However, these methods primarily detect exfiltration and fail to fully prevent DNS tunneling, with no clear response time or method for breaking the C2 communication or terminating the implant. Similarly, \citeauthor{Das} proposes a machine learning model that identifies DNS-based data exfiltration using real malware samples from financial institutions, though potential evasion strategies are also discussed \cite{Das}. Meanwhile, \citeauthor{8717806d} suggests a real-time detection mechanism using the Isolation Forest algorithm \cite{8717806d}, but their stateless analysis fails to address protection against prolonged, stealthy APT malware or C2 exfiltration. Several approaches have focused on DNS server-side detection, blending stateful and stateless features. \citeauthor{bilge2011exposure} introduced the EXPOSURE system, which identifies suspicious domains by extracting 15 features from DNS traffic, categorized into query-name, time-based, answer-based, and TTL-based features. Validated using a dataset of 100 billion DNS requests, this system effectively identifies domains involved in botnet C2 and spamming \cite{bilge2011exposure}. However, the system’s focus is on detection rather than prevention, and it is limited by the reliance on passive analysis of DNS queries. Similarly, \citeauthor{antonakakis2010building} proposed NOTOS, a dynamic reputation system analyzing passive DNS queries, extracting 41 features classified into network-based and zone-based categories \cite{antonakakis2010building}. While it identifies malicious domain characteristics, it falls short in detecting data exfiltration and lacks real-time detection capabilities, making it ineffective against stealthy C2-based exfiltration. \citeauthor{DBLP:journals/corr/abs-1709-08395} developed a solution for detecting malicious, low-throughput exfiltration using domain-specific features such as entropy and query time intervals, employing one-class SVM and Isolation Forest. However, their reliance on past traffic limits its real-time detection capabilities \cite{DBLP:journals/corr/abs-1709-08395}. Other studies, such as \citeauthor{10.1145/3230833.3233278}, explore machine learning models for C2 tunneling detection, but their effectiveness is hindered by the inability to detect stealthy C2 over long exploitation periods \cite{10.1145/3230833.3233278}. \citeauthor{9486400} uses mobile agents for real-time detection and mitigation, but the approach is prone to false positives and introduces latency due to agent hops across the network, making it unsuitable for real-time security enforcement \cite{9486400}. While solutions like \citeauthor{haider2024c2}  attempt to address C2-based DNS exfiltration over package distribution systems to prevent supply chain attacks, their approach is efficient for preventing exfiltration from single node but lacks detailed mechanisms for detecting and preventing DNS data exfiltration across multiple nodes or deep system-level observability \cite{haider2024c2,sivakorn2019countering}. These solutions remain vulnerable to policy evasion, privilege escalation, and denial-of-service attacks, largely due to limited kernel integration and insufficient enforcement of security policies. Process DNS, as introduced by \citeauthor{sivakorn2019countering}, focuses on detecting and countering C2-based DNS exfiltration, specifically by analyzing processes in userspace and terminating malicious ones \cite{sivakorn2019countering}. Despite its low-latency detection approach, the solution is vulnerable to privilege escalation and denial-of-service attacks due to its lack of kernel integration and inability to handle more sophisticated evasion tactics. The lack of transparency regarding the kernel enforced system access control mechanisms for their agents in userspace further limits its effectiveness, particularly for advanced threat actors that may bypass userspace defenses.
-Existing machine learning-based solutions typically focus on volumetric or timing anomalies, as they are limited to passively analyzing aggregated DNS traffic in userspace. These systems lack critical capabilities such as instant response, preemptive data loss estimation, cross-protocol correlation, detection of port-layer obfuscation (e.g., randomized DNS over arbitrary ports), and in-kernel inspection of encapsulated traffic. Most remain decoupled from active prevention and dynamic system-level enforcement, relying solely on stateful or stateless analysis, and often lack evaluation against advanced adversary emulation and modern C2 frameworks. While stateless lexical inspection can rapidly classify malicious payloads, userspace solutions still require behavioral or statistical analysis over packet timing to detect slow and stealthy exfiltration tactics resulting in substantial data loss prior enforcement is applied. These approaches are generally effective against bulk data leaks but falter against sophisticated techniques such as C2, multiplayer C2, botnets, and domain generation algorithms. Despite improvements in detection, no existing solution offers real-time DNS exfiltration prevention with the ability to terminate malicious implants instantly, while maintaining fine-grained control and scalability in distributed environments. Userspace-only designs lack direct access to the network interface lowest layers, sacrificing critical system-level visibility. As a result, they are poorly suited for production and cloud environments where data sovereignty, rapid containment, and deep system introspection are essential against evolving DNS threats.
+Existing machine learning–based DNS security solutions primarily focus on volumetric and timing-based anomaly detection, as they are confined to passively analyzing aggregated traffic in userspace. These architectures inherently lack critical capabilities such as real-time enforcement, in-kernel inspection of encapsulated payloads, cross-protocol correlation, and detection of port-layer obfuscation—such as DNS tunneling over randomized UDP ports. They remain decoupled from active prevention, offering no mechanisms for preemptive data loss estimation or dynamic response. Most rely on stateless or stateful analysis and are rarely evaluated against advanced adversary emulation frameworks or modern C2 tools. While lexical inspection can offer fast classification of suspicious payloads, userspace-based systems still depend on behavioral heuristics or statistical timing models to detect slow and stealthy exfiltration, often resulting in substantial data loss before enforcement is applied. Moreover, they are fundamentally incapable of preventing advanced C2 behaviors such as remote code execution, port forwarding, backdoor creation, or reverse shells. Machine learning–driven detection, particularly in passive userspace pipelines, may eventually flag these activities—but only after partial command execution or exfiltration has already occurred, making such defenses reactive and too late to prevent damage. These approaches may be adequate for bulk exfiltration scenarios but consistently fail against sophisticated threats like multi-layered C2, botnets, and domain generation algorithms. Despite incremental advances, no current solution offers true real-time DNS exfiltration prevention with implant-level termination, fine-grained enforcement, and cloud-native scalability. Userspace-only designs fundamentally lack visibility into low-level network activity and cannot introspect system state with sufficient granularity, rendering them ill-suited for production-grade environments where data sovereignty, rapid containment, and kernel-level control are paramount.
 
 \section{Enterprise Solutions to Prevent DNS Data Exfiltration}
 Akamai’s ibHH algorithm leverages information heavy hitters for real-time DNS exfiltration detection adopted in production as explained by \citeauthor{ozery2023information} by quantifying unique data transmitted from DNS subdomains to their domains, using a fixed-size cache for efficient processing \cite{ozery2023information}. However, like DNS firewalls, it lacks direct prevention at the endpoint, which is essential for minimizing data loss and reducing dwell time. It also struggles against APT malware that uses slow, stealthy C2 patterns to evade detection and volume thresholds, as acknowledged in Akamai's forums. Similarly, Amazon Route 53 Resolver DNS Firewall Advanced detects threats like DNS tunneling and DGA activity by identifying anomalies in queried domain names via DNS volume traffic and customizable rules. However, it suffers from latency due to its reliance on anomaly detection and lacks the capability for automatic prevention or enhanced observability, making it ineffective against the slow, evasive C2 communications used by APT malware.  These solutions, while effective for detecting certain types of DNS exfiltration, are limited in their response capabilities. AWS Route 53 Firewall, for example, only blacklists specific domains using static policies that require human intervention, which is inadequate against dynamic and mutating DGA techniques. Additionally, they lack cross-protocol correlation, which is critical for blocking C2 domains and filtering Layer 3 traffic through AWS network firewalls.
@@ -647,7 +650,7 @@ Fetch \texttt{dns\_kernel\_redirect\_val} = \{\texttt{l3\_checksum}, \texttt{ker
     \end{itemize}
 
   % Step 6: Redirect to Interface Index
-  Perform \texttt{bpf\_redirect(bridge\_if\_index), BPF\_F\_INGRESS}\;
+  Perform \texttt{bpf\_redirect(bridge\_if\_index, BPF\_F\_INGRESS)}\;
 }
 \Else{
   \tcp{Userspace deep-scanned packet re arrived, verify there is no timing attack via forged packet through unknown sender except eBPF node agent in userspace}
@@ -885,6 +888,7 @@ Parse DNS header from \texttt{skb}\;
 Extract DNS transaction ID (\texttt{tx\_id}) from DNS header;
 
 % Step 2: Fetch Virtualized Bridge Information
+\tcp {if\_index resembles the netdev link index id in kernel}
 Fetch \texttt{dst\_ip} and \texttt{bridge\_if\_index} from \texttt{netlink\_links\_config}:
 \begin{itemize}[nosep]
     \item Key: \texttt{if\_index} (from \texttt{skb})
@@ -896,7 +900,7 @@ Fetch \texttt{skb\_mark} from \texttt{netlink\_links\_config}:
     % \item Value: \texttt{skb\_mark}
 \end{itemize}
 
-Fetch kernel \texttt{task\_struct} and \texttt{process\_info} using \texttt{bpf\_get\_current\_pid\_tgid}:
+Fetch process \texttt{task\_struct} and \texttt{process\_info} using \texttt{bpf\_get\_current\_pid\_tgid}:
 \begin{itemize}[nosep]
     \item Key: \texttt{bpf\_get\_current\_pid\_tgid}
     % \item Value: \{\texttt{task\_struct}, \texttt{process\_info}\}
@@ -909,11 +913,15 @@ Fetch \texttt{is\_malicious} from \texttt{malicious\_process\_map} using \texttt
 \end{itemize}
 
 \If{not \texttt{is\_malicious}}{
-    Update \texttt{src\_port\_task\_struct\_map} with \texttt{key=process\_id}, \texttt{value=task\_struct}\;
-    Fetch \texttt{current\_suspicious\_ct} from \texttt{task\_struct\_redirect\_ct\_map} using \texttt{task\_struct} as key:
+    Update \texttt{src\_port\_task\_struct\_map} with:
+        \begin{itemize}[nosep]
+            \item Key:  \texttt{key=process\_id}
+            \item Value: \texttt{value=task\_struct}
+        \end{itemize}
+    Fetch \texttt{current\_suspicious\_ct} from \texttt{task\_struct\_redirect\_ct\_map}:
     \begin{itemize}[nosep]
         \item Key: \texttt{task\_struct}
-        \item Value: \texttt{current\_suspicious\_ct}
+        % \item Value: \texttt{current\_suspicious\_ct}
     \end{itemize}
     Update \texttt{task\_struct\_redirect\_ct\_map} with:
     \begin{itemize}[nosep]
@@ -926,9 +934,14 @@ Fetch \texttt{is\_malicious} from \texttt{malicious\_process\_map} using \texttt
         \item Key: \texttt{if\_idx}
         \item Value: \texttt{new count}
     \end{itemize}
-    Perform bpf_clone_redirect(skb, bridge_if_index, BPF\_F\_INGRESS)
+    Perform \texttt{bpf\_clone\_redirect(skb, bridge\_if\_index, BPF\_F\_INGRESS)}
 }
 \Else{
+    Update \texttt{task\_struct\_redirect\_ct\_map} with:
+    \begin{itemize}[nosep]
+        \item Key: \texttt{task\_struct}
+        \item Value: \texttt{current\_suspicious\_ct + 1}
+    \end{itemize}
     \Return \texttt{TC\_ACT\_SHOT}\; \tcp{Drop the packet exfiltration attempt found over the process}
 }
 \end{algorithm}
@@ -946,29 +959,66 @@ Fetch \texttt{is\_malicious} from \texttt{malicious\_process\_map} using \texttt
 \setstretch{0.9} % Reduce line spacing for more compactness
 
 \Input{Sniffed DNS packets from suspicious Linux namespaces via \texttt{pcap}; all kernel eBPF maps; eBPF LRU hash mapsss (\texttt{malicious\_process\_map}, \texttt{src\_port\_task\_struct\_map}, \texttt{task\_struct\_redirect\_ct\_map})}
-\Output{Real-time updates to \texttt{malicious\_process\_map}}
+\Output{Updates to \texttt{malicious\_process\_map}}
 
 Sniff traffic over \texttt{veth} interfaces in isolated namespaces\;
 
-Verify DNS Layer in packet SKB data
+\If{DNS layer \textbf{not} present in \texttt{skb\->data}}{
+    \Return;
+}
 
-
-Extract DNS L7 features: \texttt{tx\_id}, \texttt{qd\_count}, \texttt{ans\_count}, query class/type, domain length\;
 Extract L4 transport ports: \texttt{src\_port}, \texttt{dest\_port}\;
+Extract DNS userspace features: \texttt{tx\_id}, \texttt{qd\_count}, \texttt{ans\_count}, query class/type, domain length\;
 
-Fetch \texttt{kernel\_task\_struct} from \texttt{src\_port\_task\_struct\_map} using key \texttt{src\_port};
+Fetch \texttt{task\_struct} from \texttt{src\_port\_task\_struct\_map} with:
+    \begin{itemize}[nosep]
+        \item Key: \texttt{src\_port} 
+    \end{itemize}
+% Extract \textit{process\_id} from \texttt{task\_struct} 
 
+Extract \texttt{process\_id}, \texttt{thread\_group\_id} from \texttt{task\_struct}\;
+% \texttt{malicious_process_map} with:
+%     \begin{itemize}
+%         \item Key: \texttt{process\_id}
+%     \end{itemize}
 Fetch \texttt{isBlacklistedSLDFound} from userspace LRU hash\;
 \If{\texttt{isBlacklistedSLDFound}}{
-    Update \texttt{malicious\_process\_map} for process ID from \texttt{kernel\_task\_struct}\;
+    Update \texttt{is\_malicious flag} in \texttt{malicious\_process\_map} with:
+    \begin{itemize}[nosep]
+        \item Key: \texttt{kernel\_task\_struct}
+        \item Value: \texttt{true}
+    \end{itemize}
+    Fetch \texttt{current\_suspicious\_ct} from \texttt{task\_struct\_redirect\_ct\_map} with:
+    \begin{itemize}[nosep]
+        \item Key: \texttt{task\_struct}
+        % \item Value: \texttt{current\_suspicious\_ct + 1}
+    \end{itemize}
+    \If{\texttt{current\_suspicious\_ct} > \texttt{MAX\_MALICIOUS\_THRESHOLD}}{
+        Send \texttt{SIGKILL} to \texttt{process\_id}\;
+        \tcp {terminate the malicious process id extracted before from \texttt{src\_port\_task\_struct\_map}}
+    }
     \Return;
 }
 
 Pass features to ONNX model for inference\;
+
 \If{Inference == \texttt{MALICIOUS}}{
     Emit event to message broker\;
-    Blacklist SLD for related DNS records\;
-    Update \texttt{is\_malicious flag} in \texttt{malicious\_process\_map} with key as process ID from \texttt{kernel\_task\_struct}\;
+    Blacklist SLD for related DNS records in userspace LRU malicious cache\;
+    Update \texttt{is\_malicious flag} in \texttt{malicious\_process\_map} with:
+    \begin{itemize}[nosep]
+        \item Key: \texttt{kernel\_task\_struct}
+        \item Value: \texttt{true}
+    \end{itemize}
+    Fetch \texttt{current\_suspicious\_ct} from \texttt{task\_struct\_redirect\_ct\_map} with:
+    \begin{itemize}[nosep]
+        \item Key: \texttt{task\_struct}
+        % \item Value: \texttt{current\_suspicious\_ct + 1}
+    \end{itemize}
+    \If{\texttt{current\_suspicious\_ct} > \texttt{MAX\_MALICIOUS\_THRESHOLD}}{
+        Send \texttt{SIGKILL} to \texttt{process\_id}\;
+        \tcp {terminate the malicious process id extracted before from \texttt{src\_port\_task\_struct\_map}}
+    }
     \Return;
 }
 \ElseIf{Inference == \texttt{BENIGN}}{
@@ -1021,7 +1071,7 @@ The deep learning model extracts eight key features from live DNS traffic, as ou
 
 \subsection{Datasets}
 \label{sec:dataset}
-The deep learning model, trained utilizes three main datasets for training. First, Cisco’s top 1 million SLDs are not used for model training but are instead loaded into an in-memory LRU cache by the eBPF node agent as top benign SLD. This design optimizes performance by preventing model inference on these domains, since any sniffed DNS traffic containing them in the SLD won’t be an exfiltrated packet due to their auth zones being owned by authorized sources. Note as explained before reliance on domain scoring is used however the LRU cache is completely reprogrammable from control plane. Second, for model training, it uses the DNS exfiltration dataset by \citeauthor{ziza2023dns}, which includes live-sniffed DNS traffic from an ISP, consisting of around 50 million benign and malicious samples \cite{ziza2023dns}. Due to the smaller number of malicious samples compared to benign ones, and to avoid training bias, a synthetic dataset was generated using open-source exfiltration tools—DET, DNSExfiltrator, DNSCat2, Sliver, Iodine and custom DNS exfiltration scripts. These exfiltrated datasets captured all forms of data obfuscation for different encoding or encryption algorithms as explained  \hyperref[dns_payload_obfuscation]{before} , including tunneling and raw exfiltration, across a wide range of file formats including text (markdown, txt, rst, raw config files), image (jpg, jpeg, png), and video (mp4), generating a combined dataset of around 50 million domains, covering all the exfiltration patterns , with 50\% benign and the remaining malicious.
+The deep learning model, trained utilizes three main datasets for training. First, Cisco’s top 1 million SLDs are not used for model training but are instead loaded into an in-memory LRU cache by the eBPF node agent as top benign SLD. This design optimizes performance by preventing model inference on these domains, since any sniffed DNS traffic containing them in the SLD won’t be an exfiltrated packet due to their auth zones being owned by authorized sources. Note as explained before reliance on domain scoring is used however the LRU cache is completely reprogrammable from control plane. Second, for model training, it uses the DNS exfiltration dataset by \citeauthor{ziza2023dns}, which includes live-sniffed DNS traffic from an ISP, consisting of around 50 million benign and malicious samples \cite{ziza2023dns}. Due to the smaller number of malicious samples compared to benign ones, and to avoid training bias, a synthetic dataset was generated using open-source exfiltration tools—DET, DNSExfiltrator, DNSCat2, Sliver, Iodine and custom DNS exfiltration scripts. These exfiltrated datasets captured all forms of data obfuscation for different encoding or encryption algorithms as explained  \hyperref[dns_payload_obfuscation]{before} , including tunneling and raw exfiltration, across a wide range of file formats including text (markdown, txt, rst, raw config files), image (jpg, jpeg, png), and video (mp4), generating a combined dataset of around 6 million domains, covering all the exfiltration patterns , with 50\% benign and the remaining malicious.
 
 
 % % feature table 1 Kernel
@@ -1333,8 +1383,8 @@ Recall & 0.9979 & 0.9976 \\
 
 
 \subsubsection{eBPF Node Agent Request Throughput and Latency Metrics in Active Mode}
-The performance of the system was evaluated in active mode by measuring the impact on benign DNS traffic during standard end-to-end resolution—from a userspace process sending DNS requests, through kernel redirection via eBPF programs, to the network device monitored by the agent. For cache hits, the request is matched against the global SLD cache; for cache misses, live ONNX inference is performed. The kernel feature thresholds in the eBPF map were intentionally kept stringent, causing most DNS packets to be flagged as suspicious to stress-test the throughput. Throughput was measured using DNSPerf, which quantifies both request throughput and DNS response success rates. The test locked DNSPerf to send 10,000 DNS requests per second over 20 seconds, monitoring for packet loss. This benchmark was executed on CSSVLAB machines with an upstream PowerDNS recursor server assumed to be healthy, running on a Microsoft Hyper-V hypervisor. Due to the use of SR-IOV virtual NICs, the network stack lacked discrete RX/TX queues, and AF\_XDP sockets were unsupported on the egress path—forcing reliance on AF\_PACKET. In the cache-hit scenario (100\% benign SLD matches), throughput ranged from 8,100 to 9,820 DNS requests/sec with zero packet loss. Latency ranged from near 0 ms to a maximum of 250 ms per 10k sample, validating the lightweight nature of the kernel+userspace eBPF agent pipeline. However, in the cache-miss path requiring live inference, throughput dropped significantly—minimum of 520 and maximum of 5,200 requests/sec, with peak latencies up to 750 ms. Despite this, no packet loss was observed, ensuring reliability. The latency spike is attributed to UNIX domain socket-based communication overhead with the ONNX inference server and Python’s GIL (Global Interpreter Lock), which bottlenecks concurrency—unlike the Go-based core agent that remains highly concurrent and compiled for performance.
-It was observed that throughput becomes unstable beyond 5,000 DNS requests/sec, though such traffic volumes typically indicate malicious behavior and can be rate-limited in kernel eBPF programs. Overall, the agent successfully processed a maximum throughput of 67.3 million requests per hour with no packet loss, all while performing deep parsing across both kernel and userspace.
+The performance of the system was evaluated in active mode by measuring the impact on benign DNS traffic during standard end-to-end resolution—from a userspace process sending DNS requests, through kernel redirection via eBPF programs, to the network device monitored by the agent. For cache hits, the request is matched against the global SLD cache; for cache misses, live ONNX inference is performed. The kernel feature thresholds in the eBPF map were intentionally kept stringent, causing most DNS packets to be flagged as suspicious to stress-test the throughput. Throughput was measured using DNSPerf, which quantifies both request throughput and DNS response success rates. The test locked DNSPerf to send 10,000 DNS requests per second over 20 seconds, monitoring for packet loss. This benchmark was executed on CSSVLAB machines with an upstream PowerDNS recursor server assumed to be healthy, running on a Microsoft Hyper-V hypervisor. Due to the use of the \texttt{hv\_netvsc} virtual driver with native XDP support but no hardware offload and no access to the host’s PCIe SR-IOV virtualization functions the network stack lacked discrete RX/TX queues, and \texttt{AF\_XDP} sockets were unsupported for direct packet injection into driver TX queues. As a result, the egress path was forced to rely on \texttt{AF\_PACKET}. In the cache-hit scenario (100\% benign SLD matches), throughput ranged from 8,100 to 9,820 DNS requests/sec with zero packet loss. Latency ranged from near 0 ms to a maximum of 250 ms per 10k sample, validating the lightweight nature of the kernel+userspace eBPF agent pipeline. However, in the cache-miss path requiring live inference, throughput dropped significantly—minimum of 520 and maximum of 5,200 requests/sec, with peak latencies up to 750 ms. Despite this, no packet loss was observed, ensuring reliability. The latency spike is attributed to UNIX domain socket-based communication overhead with the ONNX inference server and Python’s GIL (Global Interpreter Lock), which bottlenecks concurrency—unlike the Go-based core agent that remains highly concurrent and compiled for performance.
+It was observed that throughput becomes unstable beyond 5,000 DNS requests/sec, though such traffic volumes typically indicate malicious behavior and can be rate-limited in kernel eBPF programs. Overall, for stress testing over prolonged period of time the agent successfully processed a maximum throughput of 67.3 million DNS requests per hour with no packet loss, all while performing deep parsing across both kernel and userspace.
 
 \begin{figure}[H]
   \centering
@@ -1402,14 +1452,14 @@ The primary evaluation metric in passive mode is the volume of DNS-based data ex
 
 
 \subsubsection{eBPF Node Agent Resource Usage}
-The performance of the eBPF node agent was closely monitored while running at the endpoint in the data plane, with resource usage measured in terms of memory and CPU utilization. During a 10-second DNSPerf benchmark at 10,000 DNS requests per second, with the agent in active mode redirecting all packets to userspace, the agent consumed approximately 310 MB of memory for the main process. This includes heap memory, as all LRU maps are in-memory and tied to the process heap for ultra-fast lookups. At a higher throughput of 100,000 DNS requests per second, memory usage remained nearly the same, peaking at 350 MB. Throughout the benchmark, CPU usage by the agent process remained under 2\%, demonstrating that the agent is extremely lightweight and performant, with no impact on other processes running at the endpoint.
+The performance of the eBPF node agent was closely monitored while running at the endpoint in the data plane, with resource usage measured in terms of memory and CPU utilization. During a 10-second DNSPerf benchmark at 10,000 DNS requests per second, with the agent in active mode redirecting all packets to userspace, the agent consumed approximately 310 MB of memory for the main process. This includes heap memory, as all LRU maps are in-memory and tied to the process heap for ultra-fast lookups. At a higher throughput of 100,000 DNS requests per second, memory usage remained nearly the same, peaking at 350 MB. Throughout the benchmark, CPU usage by the agent process remained under 2\%, and memory usage for idel load reaching close to 120 MB demonstrating that the agent is extremely lightweight from CPU needs, with no impact on other processes running at the endpoint.
 
 \begin{figure}[H]
   \centering
   \begin{minipage}[b]{0.48\textwidth}
     \centering
     \includegraphics[width=\textwidth]{UWThesis/images/results/mem_usage/memory_usage10k.png}
-    \caption{eBPF Node Agent Process Memory Usage for 10k DNS req/sec}
+    \caption{eBPF Agent Process Memory Usage for 10k DNS req/sec}
     \label{fig:mem10k}
   \end{minipage}
   \hfill
@@ -1421,6 +1471,18 @@ The performance of the eBPF node agent was closely monitored while running at th
   \end{minipage}
 \end{figure}
 
+\subsection{eBPF Node Agent effectiveness over DNS exfiltration tools}
+The eBPF node agent was evaluated across all data plane endpoints against widely used, high-reputation DNS-based C2 frameworks commonly leveraged by red team operators. Testing focused on detecting and disrupting C2 and exfiltration activities tunneled over DNS. The CSSVLAB06 node acted as the primary attacker, issuing commands through a DNS server to the targeted data plane nodes.
+The Sliver C2 framework, developed by BishopFox, was assessed not only for basic data exfiltration but also for its support of advanced C2 operations. These included remote shell access, arbitrary code execution, file transfers, remote port forwarding, and establishing persistent backdoors via dynamically opened ports—all encapsulated within DNS traffic. The eBPF agent enforced kernel-level mitigation from the very first C2 command, immediately breaking the communication channel, forcing implant retries, and ultimately terminating the process. This applied to both beaconing and session-based implants.
+Although Sliver does not support DNS tunneling over randomized UDP ports, the agent’s ability to handle transport-layer obfuscation was evaluated using dnscat2, which does support such techniques. The same set of C2 vectors was executed with the agent running in both active and passive modes. In both cases, the agent successfully enforced mitigation policies, resulting in full session teardown with no exfiltration.
+For raw data exfiltration scenarios, tools like DET, which lack UDP port randomization capabilities, were used. With the agent operating in active mode, raw exfiltration attempts were immediately blocked with zero data loss, and the offending processes were terminated. Additionally, DNS tunneling tools such as Iodine were tested for their ability to tunnel arbitrary protocols through DNS. The agent effectively intercepted and dropped the encapsulated payloads, confirming its ability to prevent a broad spectrum of DNS-based exfiltration and tunneling strategies. \hyperref[tab:dns-framework-coverage]{eBPF node agent coverage} illustrates the  attack vectors prevented. 
+
+\newpage
+\begin{figure}[H]
+  \includegraphics[width=1\textwidth]{UWThesis/images/results/C2_exfil_strength.png}
+  \caption{Framework Coverage Against Real-World DNS-Based C2 and Exfiltration Tools}
+\label{tab:dns-framework-coverage}
+\end{figure}
 
 \subsubsection{Control Plane}
 The evaluation of the controller’s stateless server focuses on its effectiveness in accurately consuming threat events streamed from data plane nodes to a Kafka topic, blacklisting domains in RPZ, and redistributing those events to data plane nodes to rehydrate their malicious domain caches.The \hyperref[fig:controller_metric]{controller consumed threat events} figure illustrates the structure of threat events streamed from eBPF agents in the data plane, serialized as JSON and published to a Kafka topic. These events are consumed by the controller and used to blacklist domains in the RPZ zone of the DNS server. The \hyperref[fig:controller_aware_metric]{controller produced events} figure shows how the controller republishes structured threat data back to the Kafka topic for data plane nodes to consume. As previously explained, the controller’s published events also include Layer 3 (IPv4/IPv6) addresses of remote C2 nodes. This enables agents in the data plane to enforce cross-protocol correlation by dynamically injecting L3 filtering rules into the kernel. This design not only blocks DNS-based DGA communication but also halts all protocol-level traffic to malicious IPs, offering strong protection from distributed threats and elevating system-level security enforcement directly inside the kernel.
@@ -1431,7 +1493,7 @@ The evaluation of the controller’s stateless server focuses on its effectivene
   \begin{minipage}[t]{0.47\textwidth}
     \centering
     \includegraphics[width=\textwidth]{UWThesis/images/results/controller_consumed_threat_event.png}
-\caption{Controller consumed threat events from data plane nodes}
+\caption{Controller consumed threat event structure from data plane nodes}
   \label{fig:controller_metric}
   \end{minipage}
   \hfill
@@ -1474,6 +1536,8 @@ In addition, \hyperref[fig:dns_rpz]{DNS RPZ} shows the resulting blacklisted dom
 
 
 
+
+
 % Data plane:
 % 1. Model Metrics 
 % 2. Threougput metrcis 
@@ -1498,7 +1562,7 @@ This chapter concludes the whole paper by summarizing the contents and give futu
 
 
 \section{Summary}
-This security framework significantly advances the state of the art by developing a novel architecture for preventing data exfiltration over DNS, directly addressing critical gaps left by traditional approaches. Existing literature and solutions for DNS exfiltration prevention remain largely stagnant, centered around centralized detection and userspace anomaly detection systems—which are inherently inadequate and lack the strength to stop sophisticated DNS-based exfiltration, especially those leveraging C2 implants or APT malware once the system is compromised. In contrast, this framework introduces a new paradigm: kernel-enforced endpoint security. It acts as a privileged layer beneath existing endpoint security solutions, enabling strict enforcement in tandem with userspace agents.With security code running inside the kernel, these agents at the endpoint possess unprecedented defensive strength stopping and killing even the most advanced forms of DNS C2 implants, including remote code execution, shellcode exploits, port forwarding, reverse tunnels, and SOCKS tunnels in real-time often used by most reputable adversary emulation tools actively used in production by red teamers.
+This security framework significantly advances the state of the art by developing a novel architecture for preventing data exfiltration over DNS, directly addressing critical gaps left by traditional approaches. Existing literature and solutions for DNS exfiltration prevention remain largely stagnant, centered around centralized detection and userspace anomaly detection systems—which are inherently inadequate and lack the strength to stop sophisticated DNS-based exfiltration, especially those leveraging C2 implants or APT malware once the system is compromised. In contrast, this framework introduces a new paradigm: kernel-enforced endpoint security. It acts as a privileged layer beneath existing endpoint security solutions, enabling strict enforcement in tandem with userspace agents. With security code running inside the kernel, these agents at the endpoint possess unprecedented defensive strength stopping and killing even the most advanced forms of DNS C2 implants, including remote code execution, shellcode exploits, port forwarding, reverse tunnels, and SOCKS tunnels in real-time often used by most reputable adversary emulation tools actively used in production by red teamers.
 Furthermore, by combining a layered, system-security-first approach with an endpoint-centric design, it significantly enhances endpoint security in ways that were never possible when relying solely on userspace. The result is a deeply integrated, system-level defense that delivers unprecedented visibility into OS activity, enables intelligent threat hunting, and robustly thwarts advanced exfiltration techniques in real time.
 
 \begin{enumerate}[itemsep=1pt,parsep=0pt]
@@ -1535,10 +1599,10 @@ Furthermore, by combining a layered, system-security-first approach with an endp
 
   \item \textbf{Absence of Encrypted Exfiltration Detection:} The framework does not yet support prevention of exfiltration over encrypted DNS channels such as DoT or DoH.
 
-  \item \textbf{Absence of Encrypted Encapsulated Tunnels:} The framework does not support prevention of exfiltration over encrypted tunnels relying on kernel xfrm such as wireguard, OpenVPN, IPSsec. 
+  \item \textbf{Absence of Encrypted Encapsulated Tunnels:} The framework does not support prevention of exfiltration over encrypted tunnels relying on kernel \texttt{xfrm} such as wireguard, OpenVPN, IPSsec. 
 
 
-  \item \textbf{Basic Throughput Control:} Egress rate limiting is not yet adaptive to volume-based exfiltration detection at high scale.
+  \item \textbf{Basic Throughput Control:} Egress rate limiting is not yet adaptive to prevent mass throughput or volume exfiltration all inside kernel TC. 
 \end{itemize}
 
 \subsection*{Future Work}
@@ -1548,7 +1612,7 @@ Furthermore, by combining a layered, system-security-first approach with an endp
 
   \item \textbf{Add In-Kernel TLS Fingerprinting:} Integrate TLS fingerprinting (e.g., JA3/JA4) using eBPF to detect encrypted DNS exfiltration or covert TLS channels over wireguard / mTLS.
 
-  \item \textbf{Enhance DNS Protocol Parsing:} Expand in-kernel DNS parser to cover full protocol depth, including additional sections and response types.
+  % \item \textbf{Enhance DNS Protocol Parsing:} Expand in-kernel DNS parser to cover full protocol depth, including additional sections and response types.
 
   % \item \textbf{DPI Optimization Using Mathematical Methods:} Improve efficiency of in-kernel DPI using optimized computation strategies like Newton-Raphson approximations for better performance under high load.
 
