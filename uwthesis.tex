@@ -76,13 +76,28 @@
 \usepackage{tabularx}
 \usepackage[table]{xcolor}
 \usepackage{multirow}
+\usepackage[utf8]{inputenc}
 \usepackage[numbers]{natbib}
+\usepackage{listings}
+\usepackage{xcolor}
 \newenvironment{demo}
   {\begin{alltt}\leftskip3em
      \def\\{\ttfamily\char`\\}%
      \def\{{\ttfamily\char`\{}%
      \def\}{\ttfamily\char`\}}}
   {\end{alltt}}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!10},
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  stringstyle=\color{orange},
+  showstringspaces=false,
+  tabsize=2
+}
 
 % metafont font.  If logo not available, use the second form
 %
@@ -109,7 +124,7 @@
 \Year{2025}
 \Program{Computer Science and Systems}
 
-\Chair{Professor Geetha Thamilarasu, Committee Chair}
+\Chair{Dr. Geetha Thamilarasu}{Committee Chair}{Computing & Software Systems}
 \Signature{Professor Munehiro Fukuda, Committee Member}
 \Signature{Professor Robert Dimpsey, Committee Member}
 \Signature{etc}
@@ -187,7 +202,7 @@ This project develops an endpoint-centric security framework to prevent DNS-base
 
 \chapter {Background}
 \section{eBPF}
-Extended Berkeley Packet Filter (eBPF) was introduced in Linux kernel version 3.15 (2014) as a general-purpose in-kernel virtual machine. It evolved from classic BPF \cite{10.5555/1267303.1267305}, which was originally limited to packet filtering through a domain-specific language and lacked the flexibility for injecting custom logic into the kernel. Unlike kernel modules, which can destabilize the system, eBPF enables safe, dynamic programmability by injecting verified code into the kernel without compromising stability or security. eBPF programs are written in a restricted subset of C, compiled to eBPF bytecode using LLVM, and executed by the in-kernel eBPF virtual machine. These programs operate under a strict execution model: a RISC-like instruction set, eleven 64-bit general-purpose registers, a 512-byte stack, and a hard cap of one million instructions. The bytecode is architecture-agnostic, making it portable across hardware platforms running the Linux kernel. To further support compatibility across different kernel versions, eBPF uses BPF Type Format (BTF) to encode type information, enabling introspection, debugging, and safe reuse of eBPF programs across different kernel versions. Before execution, the kernel’s BPF verifier statically analyzes the bytecode to ensure memory safety, bounded loops, and control flow integrity. This strict verification model makes eBPF an ideal foundation for in-kernel security applications, mitigating risks from malicious code while ensuring system stability. In addition, eBPF programs are JIT-compiled, minimizing performance overhead. Because eBPF programs run in a sandboxed kernel environment, they can safely access internal kernel subsystems, which is particularly useful for security sensitive programs requiring low-level inspection of networking stacks or access to the Linux Security Module (LSM) layer. A key strength is the use of eBPF maps: persistent, kernel-resident key value stores that support various data structures (e.g., stacks, queues, LRU caches). These maps enable stateful security applications to share data between userspace and the kernel, persist state across program lifetimes via pinning to the BPF virtual filesystem, and dynamically reprogram kernel behavior at runtime, particularly valuable for eBPF programs that enforce adaptive security policies in coordination with advanced userspace analysis. All interactions with eBPF—program loading, unloading, and map management—are performed via the bpf() syscall, typically restricted to privileged users with \texttt{CAP\_BPF} or \texttt{CAP\_SYS\_ADMIN} to reduce the attack surface. This architecture makes eBPF a powerful foundation for building advanced security enforcement frameworks, especially for detecting and mitigating data exfiltration, while still supporting deep observability, fine-grained tracing, and real-time in-kernel policy enforcement. The \hyperref[fig:eBPF-injection]{Figure 2.1} below outlines the four key phases of an eBPF program’s lifecycle—development, compiling, loading, verifying and monitoring, and runtime attachment—specifically in the context of monitoring socket\_write operations initiated by userspace processes.
+Extended Berkeley Packet Filter (eBPF) was introduced in Linux kernel version 3.15 (2014) as a general-purpose in-kernel virtual machine. It evolved from classic BPF \cite{10.5555/1267303.1267305}, which was originally limited to packet filtering through a domain-specific language and lacked the flexibility for injecting custom logic into the kernel. Unlike kernel modules, which can destabilize the system, eBPF enables safe, dynamic programmability by injecting verified code into the kernel without compromising stability or security. eBPF programs are written in a restricted subset of C, compiled to eBPF bytecode using LLVM, and executed by the in-kernel eBPF virtual machine. These programs operate under a strict execution model: a RISC-like instruction set, eleven 64-bit general-purpose registers, a 512-byte stack, and a hard cap of one million instructions. The bytecode is architecture-agnostic, making it portable across hardware platforms running the Linux kernel. To further support compatibility across different kernel versions, eBPF uses BPF Type Format (BTF) to encode type information, enabling introspection, debugging, and safe reuse of eBPF programs across different kernel versions. Before execution, the kernel’s BPF verifier statically analyzes the bytecode to ensure memory safety, bounded loops, and control flow integrity. This strict verification model makes eBPF an ideal foundation for in-kernel security applications, mitigating risks from malicious code while ensuring system stability. In addition, eBPF programs are JIT-compiled, minimizing performance overhead. Because eBPF programs run in a sandboxed kernel environment, they can safely access internal kernel subsystems, which is particularly useful for security sensitive programs requiring low-level inspection of networking stacks or access to the Linux Security Module (LSM) layer. A key strength is the use of eBPF maps: persistent, kernel-resident key value stores that support various data structures (e.g., stacks, queues, LRU caches). These maps enable stateful security applications to share data between userspace and the kernel, persist state across program lifetimes via pinning to the BPF virtual filesystem, and dynamically reprogram kernel behavior at runtime, particularly valuable for eBPF programs that enforce adaptive security policies in coordination with advanced userspace analysis. All interactions with eBPF—program loading, unloading, and map management—are performed via the bpf() syscall, typically restricted to privileged users with \texttt{CAP\_BPF} or \texttt{CAP\_SYS\_ADMIN} to reduce the attack surface. This architecture makes eBPF a powerful foundation for building advanced security enforcement frameworks, especially for detecting and mitigating data exfiltration, while still supporting deep observability, fine-grained tracing, and real-time in-kernel policy enforcement. \hyperref[fig:eBPF-injection]{Figure 2.1} below outlines the four key phases of an eBPF program’s lifecycle—development, compiling, loading, verifying and monitoring, and runtime attachment—specifically in the context of monitoring socket\_write operations initiated by userspace processes.
 
  % Once verified, the kernel can further optimize the program using in-kernel Just-In-Time (JIT) compilation, benefiting from both LLVM optimizations during compilation and runtime JIT enhancements after attachment. eBPF programs interact with userspace via maps—persistent, kernel-resident key-value data structures. These maps allow secure sharing of state and come in various types optimized for different use cases, such as BPF\_MAP\_TYPE\_LRU\_HASH, BPF\_MAP\_TYPE\_LPM\_TRIE, and BPF\_MAP\_TYPE\_STACK. Maps can be accessed using a map ID or a pinned file descriptor through the BPF virtual file system, enabling persistence beyond the lifetime of the original userspace loader.Program loading and interaction are tightly controlled through a single syscall: bpf(). Kernel-level Mandatory Access Control and Linux capabilities (e.g., CAP\_BPF, CAP\_NET\_ADMIN) are enforced to reduce the attack surface. For instance, attaching eBPF programs to the network data path requires CAP\_NET\_ADMIN, especially when managing network interfaces via AF\_NETLINK sockets. Once injected, eBPF programs are attached to various kernel hook points—network stack, scheduler, security modules—using kernel probes, tracepoints, or userland hooks.
 
@@ -339,7 +354,7 @@ Based on current literature, \citeauthor{steadman2021dnsxp} presents the only as
 % This project addresses that gap by combining deep packet inspection in the kernel with real-time DNS anomaly detection powered by userspace deep learning models. The proposed system enables low-latency, adaptive enforcement against unauthorized DNS communication, directly within the Linux kernel.
 
 \section{Machine Learning for Detecting DNS Data Exfiltration}
-Advancements in network security have significantly enhanced the detection of DNS data exfiltration, often leveraging machine learning to analyze packet patterns and payloads. Many solutions combine DPI with anomaly-based analysis of DNS traffic volume and timing, detecting potential exfiltration attempts via DNS firewalls or integrated intrusion detection systems. For C2-based exfiltration, \citeauthor{apt-process} focuses on behavioral analysis, using system resources like PowerShell and Windows backdoors alongside DNS tunneling for APT detection \cite{apt-process}. However, these methods primarily detect exfiltration and fail to fully prevent DNS tunneling, with no clear response time or method for breaking the C2 communication or terminating the implant. Similarly, \citeauthor{Das} proposes a machine learning model that identifies DNS-based data exfiltration using real malware samples from financial institutions, though potential evasion strategies are also discussed \cite{Das}. Meanwhile, \citeauthor{8717806d} suggests a real-time detection mechanism using the Isolation Forest algorithm \cite{8717806d}, but their stateless analysis fails to address protection against prolonged, stealthy APT malware or C2 exfiltration. Several approaches have focused on DNS server-side detection, blending stateful and stateless features. \citeauthor{bilge2011exposure} introduced the EXPOSURE system, which identifies suspicious domains by extracting 15 features from DNS traffic, categorized into query-name, time-based, answer-based, and TTL-based features. Validated using a dataset of 100 billion DNS requests, this system effectively identifies domains involved in botnet C2 and spamming \cite{bilge2011exposure}. However, the system’s focus is on detection rather than prevention, and it is limited by the reliance on passive analysis of DNS queries. Similarly, \citeauthor{antonakakis2010building} proposed NOTOS, a dynamic reputation system analyzing passive DNS queries, extracting 41 features classified into network-based and zone-based categories \cite{antonakakis2010building}. While it identifies malicious domain characteristics, it falls short in detecting data exfiltration and lacks real-time detection capabilities, making it ineffective against stealthy C2-based exfiltration. \citeauthor{DBLP:journals/corr/abs-1709-08395} developed a solution for detecting malicious, low-throughput exfiltration using domain-specific features such as entropy and query time intervals, employing one-class SVM and Isolation Forest. However, their reliance on past traffic limits its real-time detection capabilities \cite{DBLP:journals/corr/abs-1709-08395}. Other studies, such as \citeauthor{10.1145/3230833.3233278}, explore machine learning models for C2 tunneling detection, but their effectiveness is hindered by the inability to detect stealthy C2 over long exploitation periods \cite{10.1145/3230833.3233278}. \citeauthor{9486400} uses mobile agents for real-time detection and mitigation, but the approach is prone to false positives and introduces latency due to agent hops across the network, making it unsuitable for real-time security enforcement \cite{9486400}. While solutions like \citeauthor{haider2024c2}  attempt to address C2-based DNS exfiltration over package distribution systems to prevent supply chain attacks, their approach is efficient for preventing exfiltration from single node but lacks detailed mechanisms for detecting and preventing DNS data exfiltration across multiple nodes or deep system-level observability \cite{haider2024c2,sivakorn2019countering}. These solutions remain vulnerable to policy evasion, privilege escalation, and denial-of-service attacks, largely due to limited kernel integration and insufficient enforcement of security policies. Process DNS, as introduced by \citeauthor{sivakorn2019countering}, focuses on detecting and countering C2-based DNS exfiltration, specifically by analyzing processes in userspace and terminating malicious ones \cite{sivakorn2019countering}. Despite its low-latency detection approach, the solution is vulnerable to privilege escalation and denial-of-service attacks due to its lack of kernel integration and inability to handle more sophisticated evasion tactics. The lack of transparency regarding the kernel enforced system access control mechanisms for their agents in userspace further limits its effectiveness, particularly for advanced threat actors that may bypass userspace defenses.
+Advancements in network security have significantly enhanced the detection of DNS data exfiltration, often leveraging machine learning to analyze packet patterns and payloads. Many solutions combine DPI with anomaly-based analysis of DNS traffic volume and timing, detecting potential exfiltration attempts via DNS firewalls or integrated intrusion detection systems. For C2-based exfiltration, \citeauthor{apt-process} focuses on behavioral analysis, using system resources like PowerShell and Windows backdoors alongside DNS tunneling for APT detection \cite{apt-process}. However, these methods primarily detect exfiltration and fail to fully prevent DNS tunneling, with no clear response time or method for breaking the C2 communication or terminating the implant. Similarly, \citeauthor{Das} proposes a machine learning model that identifies DNS-based data exfiltration using real malware samples from financial institutions, though potential evasion strategies are also discussed \cite{Das}. Meanwhile, \citeauthor{8717806d} suggests a real-time detection mechanism using the Isolation Forest algorithm \cite{8717806d}, but their stateless analysis fails to address protection against prolonged, stealthy APT malware or C2 exfiltration. Several approaches have focused on DNS server-side detection, blending stateful and stateless features. \citeauthor{bilge2011exposure} introduced the EXPOSURE system, which identifies suspicious domains by extracting 15 features from DNS traffic, categorized into query-name, time-based, answer-based, and TTL-based features. Validated using a dataset of 100 billion DNS requests, this system effectively identifies domains involved in botnet C2 and spamming \cite{bilge2011exposure}. However, the system’s focus is on detection rather than prevention, and it is limited by the reliance on passive analysis of DNS queries never effective preventing C2 based DNS exfiltration. Similarly, \citeauthor{antonakakis2010building} proposed NOTOS, a dynamic reputation system analyzing passive DNS queries, extracting 41 features classified into network-based and zone-based categories \cite{antonakakis2010building}. While it identifies malicious domain characteristics, it falls short in detecting data exfiltration and lacks real-time detection capabilities, making it ineffective against stealthy C2-based exfiltration. \citeauthor{DBLP:journals/corr/abs-1709-08395} developed a solution for detecting malicious, low-throughput exfiltration using domain-specific features such as entropy and query time intervals, employing one-class SVM and Isolation Forest. However, their reliance on past traffic limits its real-time detection capabilities \cite{DBLP:journals/corr/abs-1709-08395}. Other studies, such as \citeauthor{10.1145/3230833.3233278}, explore machine learning models for C2 tunneling detection, but their effectiveness is hindered by the inability to detect stealthy C2 over long exploitation periods \cite{10.1145/3230833.3233278}. \citeauthor{9486400} uses mobile agents for real-time detection and mitigation, but the approach is prone to false positives and introduces latency due to agent hops across the network, making it unsuitable for real-time security enforcement \cite{9486400}. While solutions like \citeauthor{haider2024c2}  attempt to address C2-based DNS exfiltration over package distribution systems to prevent supply chain attacks, their approach is efficient for preventing exfiltration from single node but lacks detailed mechanisms for detecting and preventing DNS data exfiltration in distributed environment \cite{haider2024c2,sivakorn2019countering}. These solutions remain vulnerable to policy evasion, privilege escalation, and denial-of-service attacks, largely due to limited kernel integration and insufficient enforcement of security policies. Process DNS, as introduced by \citeauthor{sivakorn2019countering}, focuses on detecting and countering C2-based DNS exfiltration, specifically by analyzing processes in userspace and terminating malicious ones \cite{sivakorn2019countering}. Despite its low-latency detection approach, the solution is vulnerable to privilege escalation and denial-of-service attacks due to its lack of kernel integration and inability to handle more sophisticated evasion tactics. The lack of transparency regarding the kernel enforced system access control mechanisms for their agents in userspace further limits its effectiveness, particularly for advanced threat actors that may bypass userspace defenses.
 Existing machine learning–based DNS security solutions primarily focus on volumetric and timing-based anomaly detection, as they are confined to passively analyzing aggregated traffic in userspace. These architectures inherently lack critical capabilities such as real-time enforcement, in-kernel inspection of encapsulated payloads, cross-protocol correlation, and detection of port-layer obfuscation—such as DNS tunneling over randomized UDP ports. They remain decoupled from active prevention, offering no mechanisms for preemptive data loss estimation or dynamic response. Most rely on stateless or stateful analysis and are rarely evaluated against advanced adversary emulation frameworks or modern C2 tools. While lexical inspection can offer fast classification of suspicious payloads, userspace-based systems still depend on behavioral heuristics or statistical timing models to detect slow and stealthy exfiltration, often resulting in substantial data loss before enforcement is applied. Moreover, they are fundamentally incapable of preventing advanced C2 behaviors such as remote code execution, port forwarding, backdoor creation, or reverse shells. Machine learning–driven detection, particularly in passive userspace pipelines, may eventually flag these activities—but only after partial command execution or exfiltration has already occurred, making such defenses reactive and too late to prevent damage. These approaches may be adequate for bulk exfiltration scenarios but consistently fail against sophisticated threats like multi-layered C2, botnets, and domain generation algorithms. Despite incremental advances, no current solution offers true real-time DNS exfiltration prevention with implant-level termination, fine-grained enforcement, and cloud-native scalability. Userspace-only designs fundamentally lack visibility into low-level network activity and cannot introspect system state with sufficient granularity, rendering them ill-suited for production-grade environments where data sovereignty, rapid containment, and kernel-level control are paramount.
 
 \section{Enterprise Solutions to Prevent DNS Data Exfiltration}
@@ -602,11 +617,23 @@ Extract DNS Layer from the packet application data\;
 Get DNS transaction ID (\texttt{tx\_id}) from parsed L7 payload in \texttt{skb}\;
 Determine if packet is IPv4 or IPv6 using \texttt{nexthdr} / \texttt{h\_proto} in Ethernet frame in SKB (ETH\_P\_IPV4 / ETH\_P\_IPV6)\;
 
-% Step 2: Fetch Virtualized Bridge Information
-Fetch \texttt{dst\_ip} (destination IP), \texttt{bridge\_if\_index} from \texttt{netlink\_links\_config} using \texttt{if\_index} from \texttt{skb}\;
-Fetch \texttt{skb\_mark} from \texttt{netlink\_links\_config} using \texttt{if\_index}\;
+Extract \texttt{if\_index} from \texttt{skb}\;
 
-Fetch \texttt{dns\_kernel\_redirect\_val} = \{\texttt{l3\_checksum}, \texttt{kernel\_time\_ns}\} from \texttt{dns\_packet\_redirection} using \texttt{tx\_id}\;
+% Step 2: Fetch Virtualized Bridge Information
+Fetch \texttt{dst\_ip} from \texttt{netlink\_links\_config} with:
+\begin{itemize}[nosep]
+    \item Key: \texttt{if\_index};
+\end{itemize}
+% \texttt{bridge\_if\_index} from  using \texttt{if\_index} from \texttt{skb}\;
+Fetch \texttt{skb\_mark} from \texttt{netlink\_links\_config} with:
+\begin{itemize}[nosep]
+    \item Key: \texttt{if\_index}\;
+\end{itemize}
+
+Fetch \texttt{dns\_kernel\_redirect\_val} = \{\texttt{l3\_checksum}, \texttt{kernel\_time\_ns}\} from \texttt{dns\_packet\_redirection} with:
+\begin{itemize}[nosep]
+    \item Key: \texttt{tx\_id}\;
+\end{itemize}
 
 \If{not \texttt{dns\_kernel\_redirect\_val}}{
   \tcp{Packet redirected; arrived at TC hook first time}
@@ -654,10 +681,13 @@ Fetch \texttt{dns\_kernel\_redirect\_val} = \{\texttt{l3\_checksum}, \texttt{ker
 \Else{
   \tcp{Userspace deep-scanned packet re arrived, verify there is no timing attack via forged packet through unknown sender except eBPF node agent in userspace}
 
-    Fetch and delete \texttt{redirect\_ts\_verify\_val} from \texttt{dns\_redirect\_ts\_verify\_map} using \texttt{kernel\_time\_ns} as key\;
+    Fetch and delete \texttt{redirect\_ts\_verify\_val} from \texttt{dns\_redirect\_ts\_verify\_map} with:
+    \begin{itemize}[nosep]
+        \item Key: \texttt{kernel\_time\_ns}\;
+    \end{itemize}
     \begin{itemize}[nosep]
         \item Key: \texttt{kernel\_time\_ns}
-        \item Values: \texttt{l3\_checksum}
+        % \item Values: \texttt{l3\_checksum}
     \end{itemize}
     Using \texttt{kernel\_time\_ns} from \texttt{dns\_kernel\_redirect\_val}
 
@@ -712,7 +742,10 @@ Fetch \texttt{isSLDBenign} from userspace agent's LRU hash of top 1M SLDs\;
 }
 
 \If{\texttt{shouldRetransmit}}{
-    Fetch \texttt{kernel\_time\_ns} from \texttt{dns\_redirect\_map} using \texttt{tx\_id} as key\;
+    Fetch \texttt{kernel\_time\_ns} from \texttt{dns\_redirect\_map} with:
+    \begin{itemize}[nosep]
+        \item Key: \texttt{tx\_id}\;
+    \end{itemize}
     \If{AF\_PACKET}{
         Update \texttt{dns\_redirect\_ts\_verify\_map}:
         \begin{itemize}[nosep]
@@ -733,7 +766,7 @@ Fetch \texttt{isSLDBenign} from userspace agent's LRU hash of top 1M SLDs\;
 
 \label{sec:data_plane_standard_port}
 \begin{figure}[H]
-\includegraphics[width=1\textwidth]{UWThesis/images/udp-exfil-port-std.png}
+    \includegraphics[width=1\textwidth]{UWThesis/images/udp-exfil-port-std.png}
 \caption{eBPF Agent DNS Exfiltration Prevention Flow for Strict Enforcement Active Mode}
 \label{sec:dp-active-phase}
 \end{figure}
@@ -880,6 +913,7 @@ Perform \texttt{bpf\_map\_updates}
 }
 
 \Output{\texttt{bpf\_clone\_redirect} action to \texttt{bridge\_if\_index}}
+
 
 % Step 1: Extract Transaction ID and Determine Network Layer
 Parse DNS header from \texttt{skb}\;
@@ -1275,7 +1309,7 @@ This chapter evaluates the effectiveness of the security framework in a distribu
 
 
 \section{Environment Setup}
-The security framework was deployed across CSSVLAB{01–08} nodes running over Ubuntu 24.02 on Linux kernel 6.12 on Intel(R) Xeon(R) Gold 6130 (x86\_64) architecture, each with 8 GB of memory and 24 GB of storage. The test bench launches a custom PowerDNS authoritative and recursor server on CSSVLAB08. The controller and a Kafka single-broker instance run on CSSVLAB01. Nodes CSSVLAB{02–07}, excluding CSSVLAB06, act as the data plane, each running the eBPF node agent and using the custom PowerDNS server as the default resolver via systemd-resolved. CSSVLAB06 is used to simulate DNS exfiltration attacks against data plane nodes, tunneling DNS queries through the same PowerDNS instance. The full deployment is illustrated in \hyperref[sec:deployed-arch]{Figure 5.1}.
+The security framework was deployed across CSSVLAB{01–08} nodes running over Ubuntu 24.02 on Linux kernel 6.12 on Intel(R) Xeon(R) Gold 6130 (x86\_64) architecture, each with 8GB of memory and 24GB of storage. The test bench launches a custom PowerDNS authoritative and recursor server on CSSVLAB08. The controller and a Kafka single-broker instance run on CSSVLAB01. Nodes CSSVLAB{02–07}, excluding CSSVLAB06, act as the data plane, each running the eBPF node agent and using the custom PowerDNS server as the default resolver via systemd-resolved. CSSVLAB06 is used to simulate DNS exfiltration attacks against data plane nodes, tunneling DNS queries through the same PowerDNS instance. The full deployment is illustrated in \hyperref[sec:deployed-arch]{Figure 5.1}.
 
 
 \begin{figure}[h]
@@ -1293,7 +1327,7 @@ The evaluation of this security framework is presented for each individual compo
 The effectiveness of the eBPF node agent at the data plane endpoint is evaluated through quantized deep learning metrics, DNS request throughput comparison across both operational phases (active and passive), and measurement of bandwidth and resource utilization, including CPU and memory usage, as well as kernel event processing throughput. Finally, the agent’s resilience against advanced adversary emulation frameworks is demonstrated using detailed dashboard metrics exported by the eBPF node agent. Performance evaluation is conducted on a single selected node within the data plane running the agent.
 
 \subsubsection{Deep Learning Model Evaluation}
-The evaluation of the trained deep learning model was conducted on a dataset of 6 million domains, split into 70\% for training and 15\% each for validation and testing. After training, the model achieved a validation precision of 99.7\%, with loss steadily decreasing per epoch and reaching 0.98\% by the end of training. Given the DNS data exfiltration use case, model performance was primarily evaluated with an emphasis on minimizing false positives. High false positives would not only result in the eBPF node agent dropping benign DNS packets and generating false threat events but could also terminate legitimate  processes introducing operational risks. In contrast, false negatives were deemed less critical, as the agent would allow limited malicious traffic through without taking privilege-level actions. Therefore, precision (TP / [TP + FP]) was prioritized over recall (TP / [TP + FN]). Based on these considerations and a dataset engineered to include a wide range of data obfuscation techniques, the model achieved a high precision of 99.79\% and recall of 99.76\%. For runtime inference via ONNX within the eBPF agent, a decision threshold of 0.98 was selected, as the model demonstrated near-perfect classification (AUC ≈ 1). This performance was largely due to the selected feature set, including Shannon entropy over various encoding and encryption schemes, which enabled effective learning. \hyperref[model_metrics]{Figure 5.1} illustrates the model’s performance on both the training and validation datasets, while \hyperref[fig:model_metrics_quadrant]{Figure 5.3} highlights the improved performance over 25 training epochs.
+The evaluation of the trained deep learning model was conducted on a dataset of 6 million domains, split into 70\% for training and 15\% each for validation and testing. After training, the model achieved a validation precision of 99.7\%, with loss steadily decreasing per epoch and reaching 0.98\% by the end of training. Given the DNS data exfiltration use case, model performance was primarily evaluated with an emphasis on minimizing false positives. High false positives would not only result in the eBPF node agent dropping benign DNS packets and generating false threat events but could also terminate legitimate  processes introducing operational risks. In contrast, false negatives were deemed less critical, as the agent would allow limited malicious traffic through without taking privilege-level actions. Therefore, precision (TP / [TP + FP]) was prioritized over recall (TP / [TP + FN]). Based on these considerations and a dataset engineered to include a wide range of data obfuscation techniques, the model achieved a high precision of 99.79\% and recall of 99.76\%. For runtime inference via ONNX within the eBPF agent, a decision threshold of 0.98 was selected, as the model demonstrated near-perfect classification (AUC = 1). This performance was largely due to the selected feature set, including Shannon entropy over various encoding and encryption schemes, which enabled effective learning. \hyperref[model_metrics]{Figure 5.1} illustrates the model’s performance on both the training and validation datasets, while \hyperref[fig:model_metrics_quadrant]{Figure 5.3} highlights the improved performance over 25 training epochs.
 
 \begin{table}[H]
 \centering
@@ -1393,7 +1427,7 @@ The primary evaluation metric in passive mode is the volume of DNS-based data ex
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.6\textwidth]{UWThesis/images/results/data_loss_passive/exfil_stopped_passive_data_prevented_and_kill.png}
-\caption{eBPF Agent preventing passive DNS exfiltration across varying thresholds prior SIGKILL}
+\caption{eBPF Agent blocking passive DNS exfiltration before SIGKILL}
   \label{fig:data_loss_prev}
 \end{figure}
 
@@ -1440,10 +1474,10 @@ The performance of the eBPF node agent was closely monitored while running at th
 \end{figure}
 
 \subsection{eBPF Node Agent effectiveness over DNS exfiltration tools}
-The eBPF node agent was evaluated across all data plane endpoints against widely used, high-reputation DNS-based C2 frameworks commonly leveraged by red teams in production for penetrationt testing. Testing focused on detecting and disrupting C2 and exfiltration activities tunneled over DNS. The CSSVLAB06 node acted as the primary attacker, issuing commands through a DNS server to the targeted data plane nodes.
-The Sliver C2 framework, developed by BishopFox, was assessed not only for basic data exfiltration but also for its support of advanced C2 operations. These included remote shell access, remote code execution, file transfers, remote port forwarding, and establishing persistent backdoors via dynamically opened ports—all encapsulated within DNS traffic. The eBPF agent enforced kernel-level mitigation from the very first C2 command, immediately breaking the communication channel, forcing implant retries, and ultimately terminating the process. This applied to both beaconing and session-based implants.
-Although Sliver does not support DNS tunneling over randomized UDP ports, the agent’s ability to handle transport-layer obfuscation was evaluated using dnscat2, which does support such techniques. The same set of C2 vectors was executed with the agent running in both active and passive modes. In both cases, the agent successfully enforced mitigation policies, resulting in full session teardown with no exfiltration.
-For raw data exfiltration scenarios, tools like DET, which lack UDP port randomization capabilities, were used. With the agent operating in active mode, raw exfiltration attempts were immediately blocked with zero data loss, and the offending processes were terminated. Additionally, DNS tunneling tools such as Iodine were tested for their ability to tunnel arbitrary protocols through DNS. The agent effectively intercepted and dropped the encapsulated payloads, confirming its ability to prevent a broad spectrum of DNS-based exfiltration and tunneling strategies. \hyperref[tab:dns-framework-coverage]{Figure 5.10} illustrates the  attack vectors prevented. 
+The eBPF node agent was evaluated across all data plane endpoints against widely used, high-reputation DNS-based C2 frameworks commonly leveraged by red teams in production for penetration testing. Testing focused on detecting and disrupting C2 and exfiltration activities tunneled over DNS. The CSSVLAB06 node acted as the primary attacker, issuing commands through a DNS server to the nodes of the targeted data plane.
+The Sliver C2 framework, developed by BishopFox, was evaluated not only for basic data exfiltration, but also for its support of advanced C2 operations. These included remote shell access, remote code execution, file transfers, remote port forwarding, and establishing persistent backdoors via dynamically opened ports, all encapsulated within DNS traffic. The eBPF agent enforced kernel-level mitigation from the very first C2 command, immediately breaking the communication channel, forcing implant retries, and ultimately terminating the process. This was applied to both beacon-based and session-based implants.
+Although Sliver does not support DNS tunneling over randomized UDP ports, the agent’s ability to handle transport layer obfuscation was evaluated using dnscat2, which supports such techniques. The same set of C2 vectors was executed with the agent running in both active and passive modes. In both cases, the agent successfully enforced the mitigation policies, resulting in full session downtime without exfiltration.
+For raw data exfiltration scenarios, tools like DET, which lack UDP port randomization capabilities, were used. With the agent operating in active mode, raw exfiltration attempts were immediately blocked with zero data loss, and the offending processes were terminated. In addition, DNS tunneling tools such as iodine was tested for the ability to tunnel arbitrary protocols through DNS utilizing in kernel encapsulation through TUN/TAP network interfaces. The agent effectively intercepted and dropped the encapsulated payloads, confirming its ability to prevent a broad spectrum of DNS-based exfiltration and tunneling strategies. \hyperref[tab:dns-framework-coverage]{Figure 5.10} illustrates the  attack vectors prevented. 
 
 \newpage
 \begin{figure}[H]
@@ -1453,7 +1487,7 @@ For raw data exfiltration scenarios, tools like DET, which lack UDP port randomi
 \end{figure}
 
 \subsubsection{Control Plane}
-The evaluation of the controller’s stateless server focuses on its effectiveness in accurately consuming threat events streamed from data plane nodes to a Kafka topic, blacklisting domains in RPZ, and redistributing those events to data plane nodes to rehydrate their malicious domain caches.The \hyperref[fig:controller_metric]{Figure 5.11} figure illustrates the structure of threat events streamed from eBPF agents in the data plane, serialized as JSON and published to a Kafka topic. These events are consumed by the controller and used to blacklist domains in the RPZ zone of the DNS server. The \hyperref[fig:controller_aware_metric]{Figure 5.12} figure shows how the controller republishes structured threat data back to the Kafka topic for data plane nodes to consume. As previously explained, the controller’s published events also include Layer 3 (IPv4/IPv6) addresses of remote C2 nodes. This enables agents in the data plane to enforce cross-protocol correlation by dynamically injecting L3 filtering rules into the kernel. This design not only blocks DNS-based DGA communication but also halts all protocol-level traffic to malicious IPs, offering strong protection from distributed threats and elevating system-level security enforcement directly inside the kernel.
+The evaluation of the controller’s stateless server focuses on its effectiveness in accurately consuming threat events streamed from data plane nodes to a Kafka topic, blacklisting domains in RPZ, and redistributing those events to data plane nodes to rehydrate their malicious domain caches.The \hyperref[fig:controller_metric]{Figure 5.11} illustrates the structure of threat events streamed from eBPF agents in the data plane, serialized as JSON and published to a Kafka topic. These events are consumed by the controller and used to blacklist domains in the RPZ zone of the DNS server. The \hyperref[fig:controller_aware_metric]{Figure 5.12} shows the controller published threat event structure to the Kafka topic (exfil-sec-infer-controller) for data plane nodes to consume. As explained previously, the controller’s published events also include Layer 3 (IPv4/IPv6) addresses of remote C2 nodes. This enables agents in the data plane to enforce cross-protocol correlation by dynamically injecting L3 filtering rules into the kernel. This design not only blocks DNS-based DGA communication, but also halts all protocol-level traffic to malicious IPs, offering strong protection from distributed threats and elevating system-level security enforcement directly inside the kernel.
 
 
 \begin{figure}[H]
@@ -1530,13 +1564,13 @@ This chapter concludes the whole paper by summarizing the contents and give futu
 
 
 \section{Summary}
-This security framework significantly advances the state of the art by developing a novel architecture for preventing data exfiltration over DNS, directly addressing critical gaps left by traditional approaches. Existing literature and solutions for DNS exfiltration prevention remain largely stagnant, centered around centralized detection and userspace anomaly detection systems or proxied DPI which are inherently inadequate and lack the strength to stop sophisticated DNS-based exfiltration, especially those leveraging C2 implants or APT malware once the system is compromised. In contrast, this framework introduces a new paradigm: kernel-enforced endpoint security. It acts as a privileged layer beneath existing endpoint security solutions, enabling strict enforcement in tandem with userspace agents. With security code running inside the kernel, these agents at the endpoint possess unprecedented defensive strength stopping and killing even the most advanced forms of DNS C2 implants, including remote code execution, shellcode exploits, port forwarding, reverse tunnels, and SOCKS tunnels in real-time often used by most reputable adversary emulation tools actively used in production by red teamers.
-Furthermore, by combining a layered, system-security-first approach with an endpoint-centric design, it significantly enhances endpoint security in ways that were never possible when relying solely on userspace. The result is a deeply integrated, system-level defense that delivers unprecedented visibility into OS activity, enables intelligent threat hunting, and robustly thwarts advanced exfiltration techniques in real time. This work have been recognized by the primer Linux kernel community for innovations been presented at the most selective and prestigious kernel networking and security conferences. In addition, it is set to be presented at one of the world’s largest security conferences, showcasing innovation to advance DNS security with the goal of making DNS a safe protocol and protecting enterprises from these evolving DNS threats. The below points summarizes the strengths of the security framework.
+This security framework significantly advances the state-of-the-art by developing a novel architecture to prevent data exfiltration over DNS, directly addressing the critical gaps left by traditional approaches. The existing literature and solutions for DNS exfiltration prevention remain largely stagnant, centered on centralized detection and userspace anomaly detection systems or proxy DPI, which are inherently inadequate and lack the strength to stop sophisticated DNS-based exfiltration, especially those leveraging C2 implants or APT malware once the system is compromised. In contrast, this framework introduces a new paradigm: kernel-enforced endpoint security. It acts as a privileged layer beneath existing endpoint security solutions, enabling strict enforcement in conjunction with userspace agents. With security code running inside the kernel, these agents at the endpoint possess unprecedented defensive strength stopping and killing even the most advanced forms of DNS C2 implants and threats such as remote code execution, shellcode exploits, port forwarding, reverse tunnels, and SOCKS tunnels in real-time often used by most reputable adversary emulation tools actively used in production by red teamers.
+Furthermore, by combining a layered approach with system-security-first with an endpoint-centric design, it significantly improves endpoint security in ways that were never possible when relying solely on userspace. The result is a deeply integrated system-level defense that provides unprecedented visibility into OS activity, enables intelligent threat hunting, and robustly thwarts advanced exfiltration techniques in real time. This research and implementation has been recognized by the primer Linux kernel community, kernel maintainers for innovations having being presented at the most selective and prestigious kernel networking and security conferences. In addition, it is inline to be presented at some of the largest and highest reputed security and kernel conferences, showcasing innovation to advance DNS security with the goal of making DNS a safe protocol and protecting enterprises from these evolving DNS threats. The following points summarize the strengths of the security framework.
 
 \begin{itemize}[itemsep=1pt,parsep=0pt]
     \item \textbf{Instant DNS C2 Disruption} – Immediately blocks DNS-based command-and-control channels upon initiation, stopping covert communication at the source.
 
-    \item \textbf{Active Implant Detection \& Termination} – Detects malicious processes abusing DNS for exfiltration or remote control and terminates them in real time.
+    \item \textbf{Active Implant Process Detection \& Termination} – Detects malicious processes abusing DNS for exfiltration or remote control and terminates them in real time.
 
     \item \textbf{Tunnel and Encapsulation-Aware Defense} – Eliminates DNS tunnels, protocol-agnostic payload encapsulation, including DNS overlay over random UDP ports.
 
@@ -1548,7 +1582,7 @@ Furthermore, by combining a layered, system-security-first approach with an endp
 
     \item \textbf{Horizontal Scalability} – Designed with focus on horizontal scalability as in production cloud environments 
 
-    \item \textbf{Kernel-Level Endpoint Attribution} – Provides fine-grained OS and process-level insight, attributing DNS exfiltration attempts to specific binaries and users.
+    % \item \textbf{Kernel-Level Endpoint Attribution} – Provides fine-grained OS and process-level insight, attributing DNS exfiltration attempts to specific binaries and users.
 \end{itemize}
 
 \section{Limitation and Future Work}
@@ -1561,9 +1595,9 @@ Furthermore, by combining a layered, system-security-first approach with an endp
   \item \textbf{High Latency for deep learning model inferencing:} UNIX socket IPC, and python limitation for pure concurrency significantly reduced throughput and increased latency. 
   % \item \textbf{Partial DNS Parsing:} The DNS parser implemented in kernel currently covers only key sections of the protocol. Further parsing of DNS message structure (e.g., full RR parsing, EDNS, DNSSEC) is pending.
 
-  \item \textbf{Absence of Encrypted Exfiltration Detection:} The framework does not yet support prevention of exfiltration over encrypted DNS channels such as DoT or DoH.
+  \item \textbf{Absence of Encrypted Exfiltration Prevention:} The framework does not support prevention of exfiltration over encrypted DNS channels such as DoT or DoH.
 
-  \item \textbf{Absence of Encrypted Encapsulated Tunnels:} The framework does not support prevention of exfiltration over encrypted tunnels relying on kernel \texttt{xfrm} such as wireguard, OpenVPN, IPSec. 
+  \item \textbf{Absence of Encrypted Encapsulated Tunnels:} The framework does not support prevention of exfiltration over encrypted tunnels relying on kernel \texttt{xfrm} such as Wireguard, OpenVPN, IPSec. 
 
   \item \textbf{Basic Throughput Control:} Egress rate limiting is not yet adaptive to prevent mass throughput or volume exfiltration all inside kernel TC. 
 \end{itemize}
@@ -1581,99 +1615,51 @@ Furthermore, by combining a layered, system-security-first approach with an endp
 
   % \item \textbf{DPI Optimization Using Mathematical Methods:} Improve efficiency of in-kernel DPI using optimized computation strategies like Newton-Raphson approximations for better performance under high load.
 
-  \item \textbf{XDP-Based Flood Prevention:} Introduce XDP ingress filtering inside kernel to mitigate NXDOMAIN-based DNS water torture and DNS amplification attacks on the endpoint.
+  % \item \textbf{XDP-Based Flood Prevention:} Introduce XDP ingress filtering inside kernel to mitigate NXDOMAIN-based DNS water torture and DNS amplification attacks on the endpoint.
 
-  \item \textbf{Rate-Limiting Based on Volume and Throughput:} Integrate egress \texttt{TC CLSACT QDISC}-based dynamic rate limiting via token bucket algorithm implementation through kernel BPF timers to prevent high-throughput DNS data breaches completely inside kernel.
+  \item \textbf{Rate-Limiting Based on Volume and Throughput:} Integrate egress \texttt{TC CLSACT QDISC}-based dynamic rate limiting via token bucket algorithm implementation through kernel BPF timers preventing high-throughput DNS data breaches inside kernel.
 
-  \item \textbf{Layered Cloud and Kubernetes Defense:} Deploy policy enforcement layers across Kubernetes orchestrated environments (L3/L7 filtering via CNI to drop in userspace) and public cloud cross protocol access control list defending all nodes behind firewall.
+  % \item \textbf{Layered Cloud and Kubernetes Defense:} Deploy policy enforcement layers across Kubernetes orchestrated environments (L3/L7 filtering via CNI to drop in userspace) and public cloud cross protocol access control list defending all nodes behind firewall.
 
   % \item \textbf{XDR/EDR Telemetry Integration:} Export metrics to enterprise security platforms for enriched threat correlation, visibility, and response automation.
 \end{itemize}
 
 
+ 
+\bibliographystyle{plainnat}
+\bibliography{UWThesis/uwthesis}
 
-\chapter{Appendix}
 
-The source code for the security framework is open source and licensed under AGPLv3 license and is available at https://github.com/Synarcs/DNSObelisk.
+
+\chapter{Appendices}
+
+This chapter describes how to reproduce the results, outlines additional security mechanisms used to protect kernel eBPF programs in the data plane, and provides instructions for configuring the infrastructure to perform DNS exfiltration attacks. The complete security framework, along with all supporting configuration files, is available at \href{https://github.com/Synarcs/DNSObelisk}{GitHub}, and is currently licensed under AGPLv3, with plans to migrate to GPL as a migration to the incubation project under the Linux Foundation considering the size and importance of the codebase for the Linux kernel community. The repository includes all components of the framework, covering both kernel and userspace code for eBPF node agents in the data and control planes. In addition, it provides Docker deployment manifests for setting up Kafka brokers and basic scripts to deploy PowerDNS. These scripts configure all nodes in the distributed environment to use the PowerDNS server as their default resolver. Alternatively, the infrastructure—including the PowerDNS server and Kafka brokers—can be deployed on any cloud provider depending on operational requirements.
+
 
 \section{Appendix A}
 This section focuses on providing additional details of the eBPF node agents in data plane.
 
-\subsection{eBPF programs additional implementation details}
-This subsection details the internals of the kernel implementation insdie eBPF programs built over the TC layer.
+\subsection{eBPF programs DNS parsing inside kernel}
+\hyperref[fig:c1]{Figure 7.1} illustrates additional internal implementation details, specifically the raw parsing of DNS questions inside the kernel from SKB buffers using custom DNS protocol header structures defined within the kernel eBPF TC programs, as further shown in \hyperref[fig:c2]{Figure 7.2}.
 
 \begin{figure}[H]
     \centering
-    \begin{minipage}{0.48\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{UWThesis/images/code/c1.png}
-        \caption{DNS Protocol Header definitions and parsing in kernel}
-        \label{fig:c1}
-    \end{minipage}
-    \hfill
-    \begin{minipage}{0.48\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{UWThesis/images/code/passive.png}
-        \caption{Agent Passive mode operation in kernel}
-        \label{fig:passive}
-    \end{minipage}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \begin{subfigure}[t]{0.48\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{UWThesis/images/code/dns_parse.png}
-        \caption{Raw parsing DNS questions in kernel}
-        \label{fig:c2}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[t]{0.48\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{UWThesis/images/code/l3_dnat.png}
-        \caption{In kernel implementation of L3 DNAT for IPv4 / IPv6 traffic}
-        \label{fig:l3dnat}
-    \end{subfigure}
-    \caption{Side-by-side view of C2 detection and L3 DNAT handling.}
-    \label{fig:combined}
+    \includegraphics[width=\linewidth]{UWThesis/images/code/c1.png}
+    \caption{DNS Protocol custom Header definitions and parsing in kernel}
+    \label{fig:c1}
 \end{figure}
 
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.5\linewidth]{UWThesis/images/code/Loc/dataplane_loc.png}
-    \caption{Lines of Code across Data Plane}
-    \label{fig:loc-1}
-\end{figure}
-
-\subsection{eBPF programs integrity, security and integration with kernel LSM}
-
-
-\subsection{Instructions for compiling and deploying the eBPF node agent at the endpoint}
-
-
-\section{Appendix B}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.5\linewidth]{UWThesis/images/code/Loc/controlplane_loc.png}
-    \caption{Lines of Code across Control Plane}
-    \label{fig:loc-2}
+    \includegraphics[width=\linewidth]{UWThesis/images/code/dns_parse.png}
+    \caption{Raw parsing DNS questions inside kernel TC eBPF filter}
+    \label{fig:c2}
 \end{figure}
 
 
-\section{Appendix C}
-
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.5\linewidth]{UWThesis/images/code/Loc/infra_loc.png}
-    \caption{Lines of Code across Distributed Infrastructure}
-    \label{fig:loc-3}
-\end{figure}
-
-
-
+\subsection{eBPF programs DNS parsing inside kernel}
+\hyperref[sec:dp_ebpf_node_metrics]{Figure 7.1} describes all the details of the metrcis exported by each of  the eBPF node agent at the endpoint in data plane, with \hyperref[fig:dns-exfil-packet-metrics]{Figure 7.2} detailing about some of the enhanced system level metrics exported by the eBPF node agent to Prometheus from eBPF map and ring buffers to Grafana a visualization tool to scrape Prometheus metrics.
 
 \begin{longtable}{|p{4cm}|p{10cm}|}
 \hline
@@ -1718,7 +1704,6 @@ This subsection details the internals of the kernel implementation insdie eBPF p
     \includegraphics[width=\textwidth]{UWThesis/images/results/metrics/process alive time prior kill.png}
     \caption{Process Alive Time Before Termination}
   \end{subfigure}
-
   \vspace{0.5cm}
 
   % Row 2
@@ -1736,14 +1721,234 @@ This subsection details the internals of the kernel implementation insdie eBPF p
   \vspace{0.8cm}
 \end{figure}
 
-\newpage
   % Row 3 (detailed image, full width)
-  \begin{figure}
-      \centering
-      \includegraphics[width=0.5\linewidth]{UWThesis/images/results/metrics/dns_exfiltrated_packet_detailed_metrics.png}
-      \caption{Caption}
-      \label{fig:enter-label}
-  \end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth,height=0.4\textheight,keepaspectratio]{UWThesis/images/results/metrics/dns_exfiltrated_packet_detailed_metrics.png}
+    \caption{Detailed metrics of DNS exfiltrated packets}
+    \label{fig:dns-exfil-packet-metrics}
+\end{figure}
+
+
+\subsection{Protecting Linux Kernel from malicious eBPF programs}
+In the data plane, to ensure the highest level of security particularly beyond capability checks for injected programs, which the kernel enforces through privileged capabilities like those near CAP\_SYS\_ADMIN—integrity must also be guaranteed. This ensures that eBPF programs are not tampered with or injected with malicious code in their compiled ELF sections. A compromised node agent could otherwise inject manipulated eBPF programs, potentially bypassing the exfiltration prevention logic and leading to a wide security breach. To mitigate this, an additional set of eBPF programs is loaded into the kernel, attached to Linux Security Module (LSM) hooks that intercept BPF syscalls (such as \texttt{BPF\_PROG\_LOAD}). These programs verify the digital signatures of incoming eBPF bytecode, following a mechanism similar to how the kernel verifies loadable kernel modules. A local certificate authority (CA) is bootstrapped on each data plane node by the agent, which generates ephemeral elliptic-curve certificates and private keys. The agent first signs the raw eBPF bytecode before injection, establishing a first layer of trust. After JIT compilation, the optimized bytecode is signed again—along with the signature of the raw bytecode—forming a second layer of chained trust. The agent securely injects the certificates into the kernel session keyring, tying them to the user’s login session on the endpoint. When the \texttt{BPF\_PROG\_LOAD} syscall is triggered, the LSM hook verifies both the raw and compiled bytecode signatures using the asymmetric keys stored in the keyring. These signatures are maintained in eBPF maps to be accessible by the verification logic. This two-stage signature process ensures the integrity of both raw and compiled bytecode, preventing unauthorized tampering prior to kernel injection. This innovative security design has gained significant traction and will be presented in front of esteemed kernel security maintainers and developers.
+
+\begin{lstlisting}[language=C, caption={Kernel BPF LSM Hook for PKCS7 Signature Verification}, label={lst:bpf-lsm}]
+BPF_PROG(bpf, int cmd, union bpf_attr *attr, unsigned int size) {
+    if (cmd != BPF_PROG_LOAD)
+        return 0;
+
+    // Look up eBPF program, its original signature, and the modified signature
+    mod_sig = bpf_map_lookup_elem(&modified_signature, &zero);
+    orig_data = bpf_map_lookup_elem(&original_program, &zero);
+    combined_buf = bpf_map_lookup_elem(&combined_data_map, &zero);
+
+    // Copy eBPF program and original signature into a combined buffer
+    insn_len = attr->insn_cnt * sizeof(struct bpf_insn);
+    bpf_copy_from_user(combined_buf->data, insn_len, attr->insns);
+    bpf_probe_read_kernel(combined_buf->data + insn_len, orig_data->sig_len, orig_data->sig);
+
+    // Create dynptrs for PKCS7 verification
+    // dynptrs work similar to kptr but allowing to point to buffer location storing large amount of data as in case of signature for eBPF verifier requirements. 
+    bpf_dynptr_from_mem(combined_buf->data, total_size, 0, &combined_data_ptr);
+    bpf_dynptr_from_mem(mod_sig->sig, mod_sig_size, 0, &sig_ptr);
+    bpf_dynptr_from_mem(orig_data->data, orig_data->data_len, 0, &orig_data_ptr);
+    bpf_dynptr_from_mem(orig_data->sig, orig_data->sig_len, 0, &orig_sig_ptr);
+
+    // Load asymmetric keys from session kernel keyring and verify signatures
+    // all the kernel keyring access in bpf code is done via bpf_key a wrapper over kernel core key structure accessed from userspace via keyctl
+    trusted_key = load_keyring();
+    bpf_verify_pkcs7_signature(&orig_data_ptr, &orig_sig_ptr, trusted_key);
+    bpf_verify_pkcs7_signature(&combined_data_ptr, &sig_ptr, trusted_key);
+}
+\end{lstlisting}
+
+agent have dedicated set of eBPF programs written and injected into the core kernel security layers via interception over LSM (Linux security modules) hooks
+All the eBPF programs in kernel injected by the agents in data plane 
+
+
+
+\subsection{Instructions for compiling and deploying the eBPF node agent at the endpoint}
+The repository has individual make targets for building and deploying the agent, as well as README in root for build instructions. The steps to build and deploy the agent over all the nodes in the dataplane are explained below, however please ensure the required distributed infrastructure (DNS server, Kafka brokers) are running as well as the control plane. 
+
+{\footnotesize
+\begin{lstlisting}[language=bash, 
+    caption={Installation steps for eBPF Node agent at endpoint in data plane}, 
+    label={lst:install-steps},
+    aboveskip=0.5em, 
+    belowskip=0.5em
+]
+# Clone the repository
+git clone https://github.com/Synarcs/DNSObelisk
+cd DNSObelisk
+# Install dependencies
+sudo apt update 
+make build-dep-agent  # install all the kernel headers, libbpf and go compiler and packages
+# Compile the agent binary 
+make build 
+# Start prometheus node-exporters at endpoint for endpoint resource monitoring 
+make node-metrics
+# modify the agent config to point the nodeIP's running prometheus metric server, kafka brokers, grafana visualization server (node_agent/config.yaml).
+# start the agent
+make run_node_agent &
+# verify agent injected eBPF kernel programs over TC Qdisc)
+tc qdisc show dev eth0 # (verify CLSACT QDISC attached to all netdev's and bridge interfaces).
+# onnx inference unix IPC mount paths 
+sudo lsof /run/dnsobelisk/onnx-inference-in.sock  
+sudo lsof /run/dnsobelisk/onnx-inference-out.sock
+# finally verify all loaded eBPF kernel programs 
+# all eBPF programs start with exfil_sec*, the surrounding program varies based on number of netdev's
+# there must be program named classify attached to physical netdev.
+sudo bpftool prog show  
+sudo bpftool map show
+\end{lstlisting}
+}
+% \hyperref[fig:loc-1]{Figure 7.5} details total lines of code and 
+
+
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=0.8\linewidth]{UWThesis/images/code/Loc/dataplane_loc.png}
+%     \caption{Lines of Code for eBPF node agent in data plane}
+%     \label{fig:loc-1}
+% \end{figure}
+
+\section{Appendix B}
+This section focuses on providing additional details about control plane component of the security framework. 
+
+\subsection{Instructions for compiling and starting the control plane server}
+In order to start the control plane server on controller nodes, ensure the DNS server, Kafka brokers are healthy as well as the backend used by the PowerDNS server is reachable. Below are the steps to start the control server on ubuntu server over the controller nodes.
+
+{\footnotesize
+\begin{lstlisting}[language=bash, 
+    caption={Installation steps for eBPF Node agent at endpoint in data plane}, 
+    label={lst:install-steps},
+    aboveskip=0.5em, 
+    belowskip=0.5em
+]
+# Clone the repository
+git clone https://github.com/Synarcs/DNSObelisk
+cd DNSObelisk
+# Install dependencies
+sudo apt update && sudo apt-get install build-essential 
+make build-dep-controller 
+# Build the controller JAR
+make build-controller 
+# Start prometheus node-exporters at endpoint for endpoint resource monitoring 
+make node-metrics
+# modify the Java Spring PowerDNS backend config, spring server and Kafka broker connection config to point to correct endpoints
+# controller/src/main/application.yml,  controller/src/main/config.yaml
+# start the controller server
+make run-controller
+# verify controller running on configured port
+curl --head -X GET $(IP):$(PORT)/version 
+\end{lstlisting}
+}
+
+
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=0.8\linewidth]{UWThesis/images/code/Loc/controlplane_loc.png}
+%     \caption{Lines of Code across Control Plane}
+%     \label{fig:loc-2}
+% \end{figure}
+
+% \section{Appendix C}
+% \begin{figure}[H]
+%     \centering
+%     \begin{minipage}{0.48\textwidth}
+%         \centering
+%         \includegraphics[height=5cm]{UWThesis/images/code/dga_alg.png}
+%         \caption*{(a) DGA algorithm over PowerDNS authoritative server}
+%     \end{minipage}
+%     \hfill
+%     \begin{minipage}{0.48\textwidth}
+%         \centering
+%         \includegraphics[height=5cm]{UWThesis/images/code/forward-zone_file.png}
+%         \caption*{(b) DGA PDNS Recursor Zone forward file}
+%     \end{minipage}
+%     \caption{Illustration of DGA detection and configuration in PowerDNS}
+%     \label{fig:loc-3}
+% \end{figure}
+
+\section{Appendix C}
+This section provides additional details on the currently configured distributed infrastructure, along with step-by-step instructions for carrying out DNS exfiltration attacks on the data plane.
+
+\subsection{Instructions for configuring Kafka Brokers, and PowerDNS infrastructure}
+The steps to configure the Kafka broker and PowerDNS DNS server can substantially vary based on the infrastructure needs, however, following the official documentation of PowerDNS for setting up PowerDNS authoritive server with GPSQL backend and PowerDNS recursor, similar with Kafka broker either with docker, bare-metal or on Kubernetes exposed via Kubernetes gateway on any public cloud provider or bare-metal infrastructure.
+
+\subsection{DGA and malicious C2 and Tunnelling domains generation}
+To carry out advanced DNS C2 attacks or tunneling using open-source C2 tools, a DNS server with custom DNS zones (SOA) is required. These zones must include appropriate NS, A, AAAA, and glue records pointing to the malicious C2 server’s IP address. In this framework, PowerDNS is used as the DNS infrastructure to support such attacks. A custom script simulates a Domain Generation Algorithm (DGA) by generating random words for the second-level domain (SLD), selecting a random top-level domain (TLD), and appending a third label that identifies the C2 tool being used. The script automatically generates the PowerDNS recursor forwarder configuration, allowing the recursor to redirect specific queries to a custom authoritative PowerDNS server. It also uses pdnsutil to create the necessary zone files. By DNS design, each label requires a dedicated zone file with an NS record delegating the next label, ensuring the hierarchical resolution of queries through appropriate glue records. Currently, the DGA focuses only on domain name mutation without incorporating IP (L3) address mutation — that is, multiple A or AAAA records per domain for DNS-based load balancing across C2 nodes are not yet implemented. However, this can be extended when more infrastructure is available. Despite the absence of L3 mutation, the framework’s controller remains effective. It enforces dynamic domain blacklists and applies in-kernel network policies for cross-protocol correlation, preventing data exfiltration to dynamically generated C2 domains and IPs. Note: Most real-world advanced C2 botnets and multiplayer C2 frameworks do not require a DNS server to layer and forward DNS queries to the C2 server. Instead, they inherently support starting their own DNS server on the standard port or a random UDP port, allowing the implant to communicate directly with the C2 server. Tools like Sliver force DNS servers to forward all queries to the C2’s DNS server, eliminating the need for additional DNS hops.
+The DGA implementation is detailed below.
+
+
+
+\vspace{-0.5em}
+{\footnotesize
+\begin{lstlisting}[language=Python, 
+    caption={Domain Generation Algorithm}, 
+    label={lst:clone-redirect},
+    aboveskip=0.5em,
+    belowskip=0.5em
+]
+% generate number of malicious C2 server domains and add create zones, child zones NS links inside DNS server
+
+# all the attacker tools to use 
+% this attacker tool also generate the third label of C2 domain
+exfil_tools: List[str] = ['dnscat', 'sliver', 'iodine', 'det']
+
+# get the random TLD
+def gen_randomTLD() -> str:
+    return random.choice(['live','com','de','io','se','bld', 'val', 'def', 'head'])
+
+def DGA_MASS_DOMAINS_GEN(args):
+        r = RandomWord()
+        dga = gen_c2_exfil_domains(tldDomains=[base64.b64encode(r.word()).lower() + "." + gen_randomTLD()
+                                       for _ in range(1 << int(args.count))], 
+                            c2_tool_domains=exfil_tools)
+        ff = open(DGA_FILE, 'w', encoding='utf-8')
+        ff.write('\n'.join(dga))
+
+        append_zone_data_in_zoneFiles(dga) # create zone and child zones
+        gen_exil_forward_zones_file(dga) # generate the forward zone file 
+\end{lstlisting}
+}
+\vspace{-1em}
+
+\subsection{Instructions to implement DNS Data exfiltration attacks on data plane}
+The tools focused currently and fully evaulated are higest rated C2 matrix tools supporting most advanced forms of C2 comamnds and other types of data exfiltration. Each tool and attack carrying steps are explained below. Note in order to select a domain as explained before ocne the DGA algrithma dn vast number of domains are generated resolving to the attacker node IP, any domain from can be selected to start using these tools. 
+\subsubsection{Sliver}
+\begin{lstlisting}[language=bash,caption={Steps to deploy Sliver implant},label={lst:sliver-steps}]
+# 1. Start Sliver C2 server on attacker node
+sliver-server
+
+# 2. Connect to Sliver client console from same node
+sliver-client
+
+# 3. Start the DNS Server job 
+job -d <c2_domain_ip> 
+
+# 3. Generate implant payload (e.g., ELF for Linux)
+generate --os linux --arch amd64 --output /tmp/implant --save
+
+# 4. Transfer implant to any host in data plane
+scp /tmp/implant user@remote:/tmp/
+
+# 5. Run the implant on the remote host
+chmod +x /tmp/implant.elf
+/tmp/implant
+
+# 6. Confirm session established in Sliver console
+sessions
+\end{lstlisting}
+
+\subsubsection{Dnscat2}
+
+
+\subsubsection{Iodine}
+
+
+\subsubsection{DET}
 
 
 
@@ -1751,10 +1956,12 @@ This subsection details the internals of the kernel implementation insdie eBPF p
 
 
 
-
- 
-\bibliographystyle{plainnat}
-\bibliography{UWThesis/uwthesis}
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=0.8\linewidth]{UWThesis/images/code/Loc/infra_loc.png}
+%     \caption{Lines of Code across Distributed Infrastructure}
+%     \label{fig:loc-3}
+% \end{figure}
 
 
 \end{document}

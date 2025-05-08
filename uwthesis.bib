@@ -99,6 +99,45 @@ Following author fields is not standard
   organization={The NetDev Society}
 }
 
+@inproceedings{10.5555/1267303.1267305,
+author = {McCanne, Steven and Jacobson, Van},
+title = {The BSD packet filter: a new architecture for user-level packet capture},
+year = {1993},
+publisher = {USENIX Association},
+address = {USA},
+abstract = {Many versions of Unix provide facilities for user-level packet capture, making possible the use of general purpose workstations for network monitoring. Because network monitors run as user-level processes, packets must be copied across the kernel/user-space protection boundary. This copying can be minimized by deploying a kernel agent called a packet filter, which discards unwanted packets as early as possible. The original Unix packet filter was designed around a stack-based filter evaluator that performs sub-optimally on current RISC CPUs. The BSD Packet Filter (BPF) uses a new, register-based filter evaluator that is up to 20 times faster than the original design. BPF alson uses a straighforward buffering strategy that makes its overall performance up to 100 times faster than Sun's NIT running on the same hardware.},
+booktitle = {Proceedings of the USENIX Winter 1993 Conference Proceedings on USENIX Winter 1993 Conference Proceedings},
+pages = {2},
+numpages = {1},
+location = {San Diego, California},
+series = {USENIX'93}
+}
+
+@phdthesis{zavarella2022methodology,
+  title={A methodology for using eBPF to efficiently monitor network behavior in Linux Kubernetes clusters},
+  author={Zavarella, Timothy D},
+  year={2022},
+  school={Massachusetts Institute of Technology}
+}
+
+@article{ahmed2019monitoring,
+  title={Monitoring enterprise DNS queries for detecting data exfiltration from internal hosts},
+  author={Ahmed, Jawad and Gharakheili, Hassan Habibi and Raza, Qasim and Russell, Craig and Sivaraman, Vijay},
+  journal={IEEE Transactions on Network and Service Management},
+  volume={17},
+  number={1},
+  pages={265--279},
+  year={2019},
+  publisher={IEEE}
+}
+
+@article{stephan2024path,
+  title={The path of a packet through the linux kernel},
+  author={Stephan, Alexander and W{\"u}strich, Lars},
+  journal={Technical University of Munich, Chair of Network Architectures and Services, School of Computation, Information and Technology},
+  year={2024}
+}
+
 @inproceedings{10.1145/3281411.3281443,
 author = {H\o{}iland-J\o{}rgensen, Toke and Brouer, Jesper Dangaard and Borkmann, Daniel and Fastabend, John and Herbert, Tom and Ahern, David and Miller, David},
 title = {The eXpress data path: fast programmable packet processing in the operating system kernel},
