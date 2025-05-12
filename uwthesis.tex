@@ -589,60 +589,47 @@ Forward packet via \texttt{TC\_ACT\_OK}\;
 
 % alg 2
 \begin{algorithm}[H]
-\caption{DNS eBPF Map Handling Prior to \texttt{skb\_redirect} and Post-Socket Write over \texttt{AF\_PACKET} from userspace in \textbf{ACTIVE} Mode}
+\caption{DNS eBPF Map Handling Prior to \texttt{skb\_redirect} and Post-Socket Write Over \texttt{AF\_PACKET} From Userspace in \textbf{ACTIVE} Mode}
 \label{sec:alg2}
 \SetKwInOut{Input}{Input}
 \SetKwInOut{Output}{Output}
 
-\small % Reduce font size for the entire algorithm
-\setstretch{0.5} % Reduce line spacing for more compactness
+\small
+\setstretch{0.5}
 
 \Input{%
   \quad \texttt{skb} (socket buffer),\\
-  eBPF LRU hash maps:
-  \quad \texttt{netlink\_links\_config},\\
+  eBPF LRU hash maps: \\
+  \quad \texttt{netlink\_links\_config}, \\
   \quad \texttt{dns\_packet\_redirection\_map},\\
-  \quad \texttt{dns\_redirect\_ts\_verify\_map},\\
-  \quad \texttt{redirect\_count\_map}%
-}
-\Output{%
-  \quad \texttt{bpf\_redirect} to \texttt{bridge\_if\_index} \\
-  \quad \textit{TC\_ACT\_SHOT}  \\
-  \quad \textit{TC\_ACT\_OK}    \\
-  
+  \quad \texttt{dns\_redirect\_ts\_verify\_map}, \\  
+  \quad \texttt{redirect\_count\_map} \\ 
+  \quad \texttt{skb\_netflow\_integrity\_verify\_map}
 }
 
-% Step 1: Extract Transaction ID and Determine Network Layer
+\Output{%
+  \quad \texttt{bpf\_redirect} to \texttt{bridge\_if\_index}, \texttt{TC\_ACT\_SHOT}, \texttt{TC\_ACT\_OK}
+}
+
+\tcp{Step 1: Extract Transaction ID and Determine Network Layer}
 Extract DNS Layer from the packet application data\;
 Get DNS transaction ID (\texttt{tx\_id}) from parsed L7 payload in \texttt{skb}\;
-Determine if packet is IPv4 or IPv6 using \texttt{nexthdr} / \texttt{h\_proto} in Ethernet frame in SKB (ETH\_P\_IPV4 / ETH\_P\_IPV6)\;
-
+Determine if packet is IPv4 or IPv6 using \texttt{nexthdr} / \texttt{h\_proto} in Ethernet frame in SKB (\texttt{ETH\_P\_IPV4} / \texttt{ETH\_P\_IPV6})\;
+\tcp{use the kernel skb destined netdev link index}
 Extract \texttt{if\_index} from \texttt{skb}\;
 
-% Step 2: Fetch Virtualized Bridge Information
-Fetch \texttt{dst\_ip} from \texttt{netlink\_links\_config} with:
-\begin{itemize}[nosep]
-    \item Key: \texttt{if\_index};
-\end{itemize}
-% \texttt{bridge\_if\_index} from  using \texttt{if\_index} from \texttt{skb}\;
-Fetch \texttt{skb\_mark} from \texttt{netlink\_links\_config} with:
-\begin{itemize}[nosep]
-    \item Key: \texttt{if\_index}\;
-\end{itemize}
-
-Fetch \texttt{dns\_kernel\_redirect\_val} = \{\texttt{l3\_checksum}, \texttt{kernel\_time\_ns}\} from \texttt{dns\_packet\_redirection\_map} with:
-\begin{itemize}[nosep]
-    \item Key: \texttt{tx\_id}\;
-\end{itemize}
+\tcp{Fetch Virtualized Bridge netdev information}
+Fetch \texttt{dst\_ip} from \texttt{netlink\_links\_config} with key \texttt{if\_index}\;
+\tcp{use the random hash userspace generated for skb integrity verification over bridge post live-redirect}
+Fetch \texttt{skb\_mark} from \texttt{netlink\_links\_config} with key \texttt{if\_index}\;
+Fetch \texttt{dns\_kernel\_redirect\_val} = \{\texttt{l3\_checksum}, \texttt{kernel\_time\_ns}\} from \texttt{dns\_packet\_redirection\_map} with key \texttt{tx\_id}\;
 
 \If{not \texttt{dns\_kernel\_redirect\_val}}{
   \tcp{Packet redirected; arrived at TC hook first time}
 
-  % Step 3: Modify Packet Destination IP
   Modify \texttt{skb} to replace destination IP with \texttt{dst\_ip} of virtual bridge\;
 
-  % Step 4: Update eBPF Maps
-  \If{ETH\_P\_IPV4}{
+  \If{\texttt{ETH\_P\_IPV4}}{
     Recompute Layer 3 checksum and update in \texttt{skb}\;
     Set \texttt{l3\_checksum} = computed checksum\;
   }
@@ -650,60 +637,50 @@ Fetch \texttt{dns\_kernel\_redirect\_val} = \{\texttt{l3\_checksum}, \texttt{ker
     Set \texttt{l3\_checksum} = \texttt{0xFFFFF}\;
   }
 
+  \If{not \texttt{skb\_mark}}{
+    \tcp{custom skb\_mark per netflow not inserted from eBPF agent compute unique ID per netflow in kernel}
+    \texttt{skb\_mark} = \texttt{bpf\_get\_prandom\_u32()}
+    \tcp{an integrity verify map to verify netflow per redirect from skb mark over bridge}
+    Update \texttt{skb\_netflow\_integrity\_verify\_map} with:
+    \begin{itemize}[nosep]
+        \item Key: 0xFFEF \tcp{unique flow index identifier for skb}
+        \item Value: \texttt{skb\_mark}
+    \end{itemize}
+  }
   Mark \texttt{skb->mark} = \texttt{skb\_mark}\;
 
-    Update \texttt{dns\_packet\_redirection\_map}:
-    \begin{itemize}[nosep]
-        \item Key: \texttt{tx\_id}
-        \item Value: \{\texttt{l3\_checksum}, \texttt{kernel\_time\_ns}\}
-    \end{itemize}
+  Update \texttt{dns\_packet\_redirection\_map} with key \texttt{tx\_id} and value \{\texttt{l3\_checksum}, \texttt{kernel\_time\_ns}\}\;
 
-    Update \texttt{dns\_loop\_time}:
-    \begin{itemize}[nosep]
-        \item Key: \texttt{tx\_id}
-        \item Value: \texttt{kernel\_time\_ns}
-    \end{itemize}
+  Update \texttt{dns\_loop\_time} with key \texttt{tx\_id} and value \texttt{kernel\_time\_ns}\;
 
-  % Step 5: Update Redirect Count Map
   Fetch current redirect count from \texttt{redirect\_count\_map} using \texttt{if\_idx}\;
-
   Increment global redirect count for \texttt{if\_idx}\;
+  Update \texttt{redirect\_count\_map} with key \texttt{if\_idx} and updated count\;
 
-    Update \texttt{redirect\_count\_map}:
-    \begin{itemize}[nosep]
-        \item Key: \texttt{if\_idx}
-        \item Value: \texttt{new\_count}
-    \end{itemize}
-
-  % Step 6: Redirect to Interface Index
   Perform \texttt{bpf\_redirect(bridge\_if\_index, BPF\_F\_INGRESS)}\;
 }
 \Else{
-  \tcp{Userspace deep-scanned packet re arrived, verify there is no timing attack via forged packet through unknown sender except eBPF agent in userspace}
+  \tcp{Userspace deep-scanned packet re-arrived; verify it is not forged}
 
-
-    Extract \texttt{kernel\_time\_ns} from \texttt{dns\_kernel\_redirect\_val};\\
-    Fetch and delete \texttt{redirect\_ts\_verify\_val} from \texttt{dns\_redirect\_ts\_verify\_map} with:
-    \begin{itemize}[nosep]
-        \item Key: \texttt{kernel\_time\_ns}\;
-    \end{itemize}
+  Extract \texttt{kernel\_time\_ns} from \texttt{dns\_kernel\_redirect\_val}\;
+  Fetch and delete \texttt{redirect\_ts\_verify\_val} from \texttt{dns\_redirect\_ts\_verify\_map} using key \texttt{kernel\_time\_ns}\;
 
   \If{not \texttt{redirect\_ts\_verify\_val}}{
-    \tcp{Timing attack: user-space agent did not emit packet}
-    Perform \texttt{TC\_ACT\_SHOT}\;
+    \tcp{Timing attack: userspace agent did not emit packet}
+    \Return \texttt{TC\_ACT\_SHOT}\;
   }
   \Else{
-    \tcp{Packet rescanned from authorize sender forward the packet}
+    \tcp{Packet rescanned from authorized sender}
     Delete \texttt{redirect\_ts\_verify\_val} from \texttt{dns\_redirect\_ts\_verify\_map}\;
-    Perform \texttt{TC\_ACT\_OK}\; 
+    \Return \texttt{TC\_ACT\_OK}\;
   }
 }
-
 \end{algorithm}
+
 
 % alg 3
 \begin{algorithm}[H]
-\caption{User-Space eBPF agent with Deep Learning and Event Streaming for Deep Parsing DNS Traffic}
+\caption{User-Space eBPF Agent with Deep Learning and Event Streaming for Deep Parsing of DNS Traffic}
 \label{sec:alg3}
 \SetKwInOut{Input}{Input}
 \SetKwInOut{Output}{Output}
@@ -711,56 +688,62 @@ Fetch \texttt{dns\_kernel\_redirect\_val} = \{\texttt{l3\_checksum}, \texttt{ker
 \small
 \setstretch{0.9}
 
-\Input{Sniffed DNS packets from suspicious Linux namespaces via pcap (zero-copy), DNS features, all kernel eBPF maps of type LRU Hash}
-\Output{Packet dropped (if malicious) or socket write (if benign)}
+\Input{%
+  Sniffed DNS packets from suspicious Linux namespaces via pcap (zero-copy),\\
+  DNS features,\\
+  All kernel eBPF maps of type LRU Hash
+}
+\Output{%
+  Packet dropped (if malicious) or socket write (if benign)
+}
 
 Sniff traffic over veth pair interfaces in Linux namespace\;
 Extract userspace DNS features from DNS packet\;
-Export metrics from all the monitoring maps (redirection\_count, loop\_time, etc)\;
+Export metrics from all monitoring maps (\texttt{redirection\_count}, \texttt{loop\_time}, etc)\;
 
 Fetch \texttt{isSLDBenign} from eBPF agent's LRU map of top 1M SLDs\;
 \If{\texttt{isSLDBenign}}{
-    Set \texttt{shouldRetransmit} $\leftarrow$ \texttt{true}\;
+  Set \texttt{shouldRetransmit} $\leftarrow$ \texttt{true}\;
 }
 \Else{
-    Fetch \texttt{isBlacklistedSLDFound} from eBPF agent LRU Hash\;
-    \If{\texttt{isBlacklistedSLDFound}}{
-        \tcp{Previously blacklisted — drop packet}
-        \textbf{return}\;
-    }
-    Pass features to ONNX model for inference\;
-    \If{Inference result == \texttt{MALICIOUS}}{
-        Emit event to message brokers with details\;
-        Blacklist SLD for all DNS query records\;
-        \textbf{return}\;
-    }
-    \ElseIf{Inference result == \texttt{BENIGN}}{
-        Set \texttt{shouldRetransmit} $\leftarrow$ \texttt{true}\;
-    }
+  Fetch \texttt{isBlacklistedSLDFound} from eBPF agent's LRU Hash\;
+  \If{\texttt{isBlacklistedSLDFound}}{
+    \tcp{Previously blacklisted — drop packet}
+    \Return\;
+  }
+
+  Pass features to ONNX model for inference\;
+
+  \If{Inference result == \texttt{MALICIOUS}}{
+    Emit event to message brokers with details\;
+    Blacklist SLD for all DNS query records\;
+    \Return\;
+  }
+  \ElseIf{Inference result == \texttt{BENIGN}}{
+    Set \texttt{shouldRetransmit} $\leftarrow$ \texttt{true}\;
+  }
 }
 
 \If{\texttt{shouldRetransmit}}{
+  Fetch \texttt{dns\_kernel\_redirect\_val} = \{\texttt{l3\_checksum}, \texttt{kernel\_time\_ns}\} from \texttt{dns\_packet\_redirection\_map} with key \texttt{tx\_id}\;
+  
+  Extract \texttt{kernel\_time\_ns} from \texttt{dns\_kernel\_redirect\_val}\;
 
-    Fetch \texttt{dns\_kernel\_redirect\_val} = \{\texttt{l3\_checksum}, \texttt{kernel\_time\_ns}\} from \texttt{dns\_packet\_redirection\_map} with:
-    \begin{itemize}[nosep]
-        \item Key: \texttt{tx\_id}\;
-    \end{itemize}
-    Extract \texttt{kernel\_time\_ns} from \texttt{dns\_kernel\_redirect\_val}\\ 
-    \If{AF\_PACKET}{
-        Update \texttt{dns\_redirect\_ts\_verify\_map}:
-        \begin{itemize}[nosep]
-            \item Key: \texttt{kernel\_time\_ns}
-            \item Value: \texttt{true}
-        \end{itemize}
-        Replace packet’s \texttt{l3\_checksum}\;
-        Serialize packet payload to raw bytes\;
-        syscall.write(AF\_PACKET, SOCK\_RAW, 0)\;
-    }
-    \If{AF\_XDP}{
-        Delete \texttt{kernel\_time\_ns} from \texttt{dns\_redirect\_map}\;
-        Serialize packet payload to raw bytes\;
-        syscall.write(AF\_XDP, SOCK\_RAW, 0)\;
-    }
+  \If{\texttt{AF\_PACKET}}{
+    Update \texttt{dns\_redirect\_ts\_verify\_map} with: \\
+    \quad Key: \texttt{kernel\_time\_ns} \\
+    \quad Value: \texttt{true}\;
+
+    Replace packet’s \texttt{l3\_checksum}\;
+    Serialize packet payload to raw bytes\;
+    \texttt{syscall.write(AF\_PACKET, SOCK\_RAW, 0)}\;
+  }
+
+  \If{\texttt{AF\_XDP}}{
+    Delete \texttt{kernel\_time\_ns} from \texttt{dns\_redirect\_map}\;
+    Serialize packet payload to raw bytes\;
+    \texttt{syscall.write(AF\_XDP, SOCK\_RAW, 0)}\;
+  }
 }
 \end{algorithm}
 
@@ -830,162 +813,162 @@ The map concurrency principles remain consistent with those in active mode, rely
 
 
 % % alg 4
-\vspace{-10pt}
 \begin{algorithm}[H]
-\caption{DNS RAW SKB Parsing over Egress TC CLSACT QDISC in \textbf{Passive} Mode }
+\caption{DNS RAW SKB Parsing over Egress TC CLSACT QDISC in \textbf{Passive} Mode}
 \label{sec:alg4}
 \SetKwInOut{Input}{Input}
 \SetKwInOut{Output}{Output}
 
-\small % Reduce font size for the entire algorithm
-\setstretch{0.9} % Reduce line spacing for more compactness
+\small
+\setstretch{0.9}
 
 \Input{%
-  \quad \texttt{skb} (socket buffer),\\
-  eBPF LRU hash mapss:
-  \quad \texttt{netlink\_links\_config}%
+  \texttt{skb} (socket buffer),\\
+  eBPF LRU hash maps: \texttt{netlink\_links\_config}
 }
 \Output{%
-  \quad Packet Actions Clone Redirect action: \texttt{TC\_ACT\_OK} \\
-  \quad eBPF Map Updates \texttt{bpf\_map\_updates}
+  Packet Actions: \texttt{TC\_ACT\_OK},\\
+  eBPF Map Updates: \texttt{bpf\_map\_updates}
 }
 
-Parse Lower layers from skb
-% 
-% Step 0: Extract DNS Header Counts
+Parse lower layers from \texttt{skb}\;
+
+% Step 0: Extract DNS header from skb
 Parse DNS header from \texttt{skb}\;
+
 % Step 1: Extract DNS Header Counts
 Extract \texttt{qd\_count}, \texttt{ans\_count}, \texttt{auth\_count}, \texttt{add\_count}\;
 
 % Step 2: Check for Non-Standard Port/Protocol
-\tcp{Verify the DNS count limits within the header variable size (u8)}
+\tcp{Verify the DNS count limits within u8 range}
 \If{%
   \texttt{qd\_count} $\geq$ 256 \textbf{or} \\
   \quad \texttt{ans\_count} $\geq$ 256 \textbf{or} \\
   \quad \texttt{auth\_count} $\geq$ 256 \textbf{or} \\
   \quad \texttt{add\_count} $\geq$ 256%
 }{
-  \Return  \texttt{TC\_ACT\_OK}\;
+  \Return \texttt{TC\_ACT\_OK}\;
 }
 
 % Step 3: DNS Flags and Opcode/Rcode Validation
 Extract DNS flags: \texttt{raw\_dns\_flags} from \texttt{dns\_header}\;
 
-\tcp{Verify the opcodes, rcode in DNS flag to validate RFC 1035}
+\tcp{Verify opcodes and rcode according to RFC 1035}
 \If{\texttt{opcode} $\geq$ 6}{
-  \Return  \texttt{TC\_ACT\_OK}\;
+  \Return \texttt{TC\_ACT\_OK}\;
 }
 
 \If{\texttt{rcode} $\geq$ 24}{
-  \Return  \texttt{TC\_ACT\_OK}\;
+  \Return \texttt{TC\_ACT\_OK}\;
 }
 
 % Step 4: Bridge Lookup and Redirection
-Fetch \texttt{dst\_ip} and \texttt{bridge\_if\_index} from \texttt{netlink\_links\_config}:
+Fetch \texttt{dst\_ip} and \texttt{bridge\_if\_index} from \texttt{netlink\_links\_config} using:
 \begin{itemize}[nosep]
-    \item Key: \texttt{if\_index} (from \texttt{skb})
-    \item Values: \texttt{dst\_ip}, \texttt{bridge\_if\_index}
+  \item Key: \texttt{if\_index} (from \texttt{skb})
+  \item Values: \texttt{dst\_ip}, \texttt{bridge\_if\_index}
 \end{itemize}
 
-Perform \texttt{bpf\_map\_updates}
+Perform \texttt{bpf\_map\_updates}\;
 
 \end{algorithm}
 
 
 % % alg 5
 \begin{algorithm}[H]
-\caption{DNS eBPF map handling prior  in \textbf{PASSIVE} mode of agent}
+\caption{DNS eBPF Map Handling in \textbf{Passive} Mode of Agent}
 \label{sec:alg5}
 \SetKwInOut{Input}{Input}
 \SetKwInOut{Output}{Output}
 
-\small % Reduce font size for the entire algorithm
-\setstretch{0.9} % Reduce line spacing for more compactness
-
+\small
+\setstretch{0.9}
 
 \Input{%
   \texttt{skb} (socket buffer),\\
-  eBPF LRU hash mapss: \\
+  eBPF LRU hash maps: \\
   \quad \texttt{malicious\_process\_map},\\
   \quad \texttt{src\_port\_task\_struct\_map},\\
   \quad \texttt{task\_struct\_redirect\_ct\_map},\\
-  \quad \texttt{dns\_packet\_clone\_redirection\_ct\_map}%
-  \quad 
+  \quad \texttt{dns\_packet\_clone\_redirection\_ct\_map}
 }
-
-\Output{\texttt{bpf\_clone\_redirect} action to \texttt{bridge\_if\_index}}
-
+\Output{%
+  \texttt{bpf\_clone\_redirect} action to \texttt{bridge\_if\_index}
+}
 
 % Step 1: Extract Transaction ID and Determine Network Layer
 Parse DNS header from \texttt{skb}\;
-Extract DNS transaction ID (\texttt{tx\_id}) from DNS header;
+Extract DNS transaction ID (\texttt{tx\_id}) from DNS header\;
 
 % Step 2: Fetch Virtualized Bridge Information
-\tcp {if\_index resembles the netdev link index id in kernel}
+\tcp{\texttt{if\_index} resembles the netdev link index in the kernel}
 Fetch \texttt{dst\_ip} and \texttt{bridge\_if\_index} from \texttt{netlink\_links\_config}:
 \begin{itemize}[nosep]
-    \item Key: \texttt{if\_index} (from \texttt{skb})
-    % \item Values: \texttt{dst\_ip}, \texttt{bridge\_if\_index}
+    \item Key: \texttt{if\_index}
 \end{itemize}
+
 Fetch \texttt{skb\_mark} from \texttt{netlink\_links\_config}:
 \begin{itemize}[nosep]
     \item Key: \texttt{if\_index}
-    % \item Value: \texttt{skb\_mark}
 \end{itemize}
 
 Fetch process \texttt{task\_struct} and \texttt{process\_info} using \texttt{bpf\_get\_current\_pid\_tgid}:
 \begin{itemize}[nosep]
     \item Key: \texttt{bpf\_get\_current\_pid\_tgid}
-    % \item Value: \{\texttt{task\_struct}, \texttt{process\_info}\}
 \end{itemize}
 
 Fetch \texttt{is\_malicious} from \texttt{malicious\_process\_map} using \texttt{process\_id}:
 \begin{itemize}[nosep]
     \item Key: \texttt{process\_id}
-    % \item Value: \texttt{is\_malicious}
 \end{itemize}
 
 \If{not \texttt{is\_malicious} or \texttt{is\_malicious} is \texttt{null}}{
-    Update \texttt{src\_port\_task\_struct\_map} with:
-        \begin{itemize}[nosep]
-            \item Key: \texttt{process\_id}
-            \item Value: \texttt{task\_struct}
-        \end{itemize}
+    Update \texttt{src\_port\_task\_struct\_map}:
+    \begin{itemize}[nosep]
+        \item Key: \texttt{process\_id}
+        \item Value: \texttt{task\_struct}
+    \end{itemize}
+
     Fetch \texttt{current\_suspicious\_ct} from \texttt{task\_struct\_redirect\_ct\_map}:
     \begin{itemize}[nosep]
         \item Key: \texttt{task\_struct}
-        % \item Value: \texttt{current\_suspicious\_ct}
     \end{itemize}
-    Update \texttt{task\_struct\_redirect\_ct\_map} with:
+
+    Update \texttt{task\_struct\_redirect\_ct\_map}:
     \begin{itemize}[nosep]
         \item Key: \texttt{task\_struct}
         \item Value: \texttt{current\_suspicious\_ct + 1}
     \end{itemize}
+
     Increment global \texttt{clone\_redirect\_ct} counter\;
-    Update \texttt{dns\_packet\_clone\_redirection\_ct\_map} with:
+
+    Update \texttt{dns\_packet\_clone\_redirection\_ct\_map}:
     \begin{itemize}[nosep]
-        \item Key: \texttt{if\_idx}
+        \item Key: \texttt{if\_index}
         \item Value: \texttt{new count}
     \end{itemize}
+
     \If{\texttt{is\_malicious} is \texttt{null}}{
-        \tcp{Process send the DNS packet first time, the process is not yet found malicious}
-        Update \texttt{malicious\_process\_map} with:
+        \tcp{First DNS attempt by process — not yet marked malicious}
+        Update \texttt{malicious\_process\_map}:
         \begin{itemize}[nosep]
             \item Key: \texttt{process\_id}
             \item Value: \texttt{false}
         \end{itemize}
     }
-    Perform \texttt{bpf\_clone\_redirect(skb, bridge\_if\_index, BPF\_F\_INGRESS)}
+
+    Perform \texttt{bpf\_clone\_redirect(skb, bridge\_if\_index, BPF\_F\_INGRESS)}\;
 }
 \Else{
-    Update \texttt{task\_struct\_redirect\_ct\_map} with:
+    Update \texttt{task\_struct\_redirect\_ct\_map}:
     \begin{itemize}[nosep]
         \item Key: \texttt{task\_struct}
         \item Value: \texttt{current\_suspicious\_ct + 1}
     \end{itemize}
-    Perform \texttt{bpf\_clone\_redirect(skb, bridge\_if\_index, BPF\_F\_INGRESS)}
+
+    Perform \texttt{bpf\_clone\_redirect(skb, bridge\_if\_index, BPF\_F\_INGRESS)}\;
     \Return \texttt{TC\_ACT\_SHOT}\;
-    \tcp{Drop the packet exfiltration attempt found over the process, keep clone redirecting from kernel to monitor implant retry behavior, to be killed}
+    \tcp{Drop packet — malicious process attempted exfiltration. Continue redirecting clones to monitor retry behavior.}
 }
 \end{algorithm}
 
@@ -1586,7 +1569,7 @@ This chapter concludes the whole paper by summarizing the contents and give futu
 
 \section{Summary}
 This security framework significantly advances the state-of-the-art by developing a novel architecture to prevent data exfiltration over DNS, directly addressing the critical gaps left by traditional approaches. The existing literature and solutions for DNS exfiltration prevention remain largely stagnant, centered on centralized detection and userspace anomaly detection systems or proxy DPI, which are inherently inadequate and lack the strength to stop sophisticated DNS-based exfiltration, especially those leveraging C2 implants or APT malware once the system is compromised. In contrast, this framework introduces a new paradigm: kernel-enforced endpoint security. It acts as a privileged layer beneath existing endpoint security solutions, enabling strict enforcement in conjunction with eBPF agents. With security code running inside the kernel, these agents at the endpoint possess unprecedented defensive strength stopping and killing even the most advanced forms of DNS C2 implants and threats such as remote code execution, shellcode exploits, port forwarding, reverse tunnels, and SOCKS tunnels in real-time often used by most reputable adversary emulation tools actively used in production by red teamers.
-Furthermore, by combining a layered approach with system-security-first with an endpoint-centric design, it significantly improves endpoint security in ways that were never possible when relying solely on userspace. The architecture developed is a deeply integrated system-level defense that provides unprecedented visibility into OS activity, enables intelligent threat hunting, and robustly thwarts advanced exfiltration techniques in real time. This research and implementation has been recognized by the primer Linux kernel community, kernel maintainers for innovations having being presented at the most selective and prestigious kernel networking and security conferences. In addition, it is inline to be presented at some of the largest and highest reputed security and kernel conferences, showcasing innovations to advance DNS security with the goal of avoiding exploitation of DNS due to its critical needs for data exfiltration and protecting enterprises from these evolving DNS threats. The following points summarize the strengths of the security framework.
+Furthermore, by combining a layered approach with system-security-first with an endpoint-centric design, it significantly improves endpoint security in ways that were never possible when relying solely on userspace. The architecture developed is a deeply integrated system-level defense that provides unprecedented visibility into OS activity, enables intelligent threat hunting, and robustly thwarts advanced exfiltration techniques in real time. This research and implementation has been recognized by the primer Linux kernel community, kernel maintainers for innovations having being presented at the most selective and prestigious kernel networking and security conferences. In addition, it is inline to be presented at some of the largest and highest reputed kernel security conferences, showcasing innovations to advance DNS security with the goal of avoiding exploitation of DNS due to its critical needs for data exfiltration and protecting enterprises from these evolving DNS threats. The following points summarize the strengths of the security framework.
 
 \vspace{-15pt}
 \begin{itemize}[nosep]
@@ -1665,12 +1648,12 @@ This section focuses on providing additional details of the eBPF agents in data 
 \subsection{DNS parsing inside kernel by eBPF  program}
 \hyperref[fig:c1]{Figure 7.1} illustrates additional internal implementation details, specifically the raw parsing of DNS questions inside the kernel from SKB using custom DNS protocol header structures defined within the kernel eBPF TC programs, as further shown in \hyperref[fig:c2]{Figure 7.2}. Considering the intensive parsing and enforcement performed by the kernel traffic control (TC) layer to classify DNS application payloads—an industry-first compared to existing academic and enterprise solutions—advanced benchmarking was conducted to measure internal kernel impact. The eBPF program was executed in parallel across different CPU cores, monitored using Netflix’s bpftop tool. Under a high-throughput benchmark of approximately 100,000 DNS requests per second, the kernel eBPF program’s CPU usage peaked at 4\% across 8 cores, with a minimum of 2\%. The program sustained processing of up to 17,063 events per second, excluding hardware interrupts and soft IRQ overhead, demonstrating the efficiency of kernel-resident eBPF logic within TC. \hyperref[fig:c3]{Figure 7.3} illustrates the kernel eBPF profiling results.
 
-\begin{center}
+\begin{figure}
   \includegraphics[width=\linewidth]{UWThesis/images/code/c1.png}
   \newline
   \textbf{Figure X:} DNS Protocol custom Header definitions and parsing in kernel
   \label{fig:c1}
-\end{center}
+\end{figure}
 
 
 \begin{figure}[H]
@@ -1760,7 +1743,7 @@ This section focuses on providing additional details of the eBPF agents in data 
 
 
 \subsection{Protecting Linux Kernel from malicious eBPF programs}
-In the data plane, to ensure the highest level of security particularly beyond capability checks for injected programs, which the kernel enforces through privileged capabilities like those near CAP\_SYS\_ADMIN—integrity must also be guaranteed. This ensures that eBPF programs are not tampered with or injected with malicious code in their compiled ELF sections. A compromised eBPF agent could otherwise inject manipulated eBPF programs, potentially bypassing the exfiltration prevention logic and leading to a wide security breach. To mitigate this, an additional set of eBPF programs is loaded into the kernel, attached to Linux Security Module (LSM) hooks that intercept BPF syscalls (such as \texttt{BPF\_PROG\_LOAD}). These programs verify the digital signatures of incoming eBPF bytecode, following a mechanism similar to how the kernel verifies loadable kernel modules. A local certificate authority (CA) is bootstrapped on each data plane node by the agent, which generates ephemeral elliptic-curve certificates and private keys. The agent first signs the raw eBPF bytecode before injection, establishing a first layer of trust. After JIT compilation, the optimized bytecode is signed again—along with the signature of the raw bytecode—forming a second layer of chained trust. The agent securely injects the certificates into the kernel session keyring, tying them to the user’s login session on the endpoint. When the \texttt{BPF\_PROG\_LOAD} syscall is triggered, the LSM hook verifies both the raw and compiled bytecode signatures using the asymmetric keys stored in the keyring. These signatures are maintained in eBPF maps to be accessible by the verification logic. This two-stage signature process ensures the integrity of both raw and compiled bytecode, preventing unauthorized tampering prior to kernel injection. This innovative security design has gained significant traction and will be presented in front of kernel security maintainers and developers of core kernel mandatory access control subsystems.
+In the data plane, to ensure the highest level of security particularly beyond capability checks for injected programs, which the kernel enforces through privileged capabilities like those near CAP\_SYS\_ADMIN—integrity must also be guaranteed. This ensures that eBPF programs are not tampered with or injected with malicious code in their compiled ELF sections. A compromised eBPF agent could otherwise inject manipulated eBPF programs, potentially bypassing the exfiltration prevention logic and leading to a wide security breach. To mitigate this, an additional set of eBPF programs is loaded into the kernel, attached to Linux Security Module (LSM) hooks that intercept BPF syscalls (such as \texttt{BPF\_PROG\_LOAD}). These programs verify the digital signatures of incoming eBPF bytecode, following a mechanism similar to how the kernel verifies loadable kernel modules. A local certificate authority (CA) is bootstrapped on each data plane node by the agent, which generates ephemeral elliptic-curve certificates and private keys. The agent first signs the raw eBPF bytecode before injection, establishing a first layer of trust. After JIT compilation, the optimized bytecode is signed again—along with the signature of the raw bytecode—forming a second layer of chained trust. The agent securely injects the certificates into the kernel session keyring, tying them to the user’s login session on the endpoint. When the \texttt{BPF\_PROG\_LOAD} syscall is triggered, the LSM hook verifies both the raw and compiled bytecode signatures using the asymmetric keys stored in the keyring. These signatures are maintained in eBPF maps to be accessible by the verification logic. This two-stage signature process ensures the integrity of both raw and compiled bytecode, preventing unauthorized tampering prior to kernel injection. This innovative security design to protect the Linux kernel from runtime tampering by integrating the kernel keyring, LSM has gained significant traction and will be presented in front of Linux kernel security maintainers and developers of mandatory access control subsystems of the core kernel.
 
 \begin{lstlisting}[language=C, caption={Kernel BPF LSM Hook for PKCS7 Signature Verification}, label={lst:bpf-lsm}]
 BPF_PROG(bpf, int cmd, union bpf_attr *attr, unsigned int size) {
@@ -1791,6 +1774,46 @@ BPF_PROG(bpf, int cmd, union bpf_attr *attr, unsigned int size) {
     bpf_verify_pkcs7_signature(&combined_data_ptr, &sig_ptr, trusted_key);
 }
 \end{lstlisting}
+
+\subsection{Protecting SKB Netflow introspection and eavesdropping}
+In active mode, the agent enforces advanced security directly in the kernel using a TC-attached eBPF program bound to the veth bridge that manages all network namespaces created by the agent. To prevent malicious processes from analyzing live traffic redirection patterns, an additional eBPF map, \texttt{skb\_netflow\_integrity\_verify\_map}, is used as explained before in \hyperref[sec:alg2]{Algorithm 2}. The core eBPF program assigns a unique SKB mark to each redirected netflow packet, enabling integrity verification at the receiving bridge interface. This bridge, monitored by the eBPF agent in userspace, receives the redirected traffic for further analysis of suspicious behavior.
+An additional ingress TC eBPF program is attached to the bridge interface. It inspects incoming SKBs to verify that the expected SKB mark is present, confirming that the packet was redirected from the core TC program on a physical netdev, and not injected from any untrusted source. This enhanced security design ensures strong SKB integrity and prevents malicious sniffing or brute-force inference of live redirection patterns, effectively enforcing traffic validation across both kernel and userspace components. \hyperref[sec:alg8]{Algorithm 8} explains the algorithm integrity verification check on the SKB attached to the TC ingress on the bridge.
+
+\begin{algorithm}[H]
+\label{sec:alg8}
+\caption{SKB Integrity Verification and Secure Redirection in \textbf{Active} Mode}
+\label{sec:alg_active_mode_integrity}
+\SetKwInOut{Input}{Input}
+\SetKwInOut{Output}{Output}
+
+\small
+\setstretch{0.9}
+
+\Input{%
+  \texttt{skb} (socket buffer), \\
+  eBPF maps: \\
+  \quad \texttt{skb\_netflow\_integrity\_verify\_map}
+}
+\Output{%
+  TC\_ACT\_OK \\ 
+  TC\_ACT\_SHOT 
+}
+
+Fetch \texttt{skb\_mark\_integrity\_mark} from \texttt{skb\_netflow\_integrity\_verify\_map} with:
+\begin{itemize}[nosep]
+    \item Key: \texttt{0xFFEF} \tcp{unique key same used in core TC program over physical netdev}
+\end{itemize}
+
+% Step 2
+\If{\texttt{skb\_mark\_integrity\_mark} $\neq$ \texttt{skb->mark}}{
+    \tcp{This is a tampered redirected packet and did not originate from the main TC egress program}
+    \Return \texttt{TC\_ACT\_SHOT}\;
+}
+
+\Return TC\_ACT\_OK;\
+\end{algorithm}
+
+
 
 \subsection{Instructions for compiling and deploying the eBPF agent at the endpoint}
 The repository has individual make targets for building and deploying the agent, as well as README in root for build instructions. The steps to build and deploy the agent over all the nodes in the data plane are explained below, however please ensure the required distributed infrastructure (DNS server, Kafka brokers) are healthy and discoverable.
@@ -1973,7 +1996,6 @@ use <beacon_id>
 
 \subsubsection{Dnscat2}
 Dnscat2 documentation for building the dnscat2 server and client can be found on official documentation page at \href{https://github.com/iagox86/dnscat2/blob/master/README.md}{Github}.
-\newpage
 \begin{lstlisting}[language=bash,caption={Steps to use Dnscat2 for Dns C2},label={lst:dnscat2-steps}]
 # 1. Start Dnscat2 C2 server on attacker node without port obfuscation, default DNS tunnelling over Port 53/udp 
 sudo ruby dnscat2.rb --dns 'host=<attacker_node>,domain=<c2_domain>'
