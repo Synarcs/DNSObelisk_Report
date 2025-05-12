@@ -809,7 +809,7 @@ Value: Is the Process malicioous based on previous detected malicious transfer t
 
 
 
-\subsection{\textbf{eBPF program packet processing over egress TC QDISC filter}}
+\subsubsection{\textbf{eBPF program packet processing over egress TC QDISC filter}}
 \label{passive:sec1}
 In passive mode, DNS exfiltration is often attempted by layering DNS payloads over random UDP transport ports, excluding the standard DNS ports that are directly handled in active mode. The eBPF program parses the lower layers up to transports in the same manner as explained in active mode. As a deliberate design decision, these packets are not immediately redirected by the eBPF program, even if they appear suspicious. This prevents unnecessary network congestion and added latency for other legitimate Layer 7 protocols using arbitrary UDP ports. Since the eBPF program cannot guarantee that the application data in the skb truly belongs to DNS, it avoids aggressive redirection. Instead, it permits the packet to pass through the kernel as usual. Internally, however, it invokes \texttt{skb\_clone}, a kernel helper that creates a full clone of the packet from the original SKB.
 
@@ -823,7 +823,7 @@ The userspace eBPF agent only sends a kill signal once the number of prevented D
 \label{passive:sec2}
 The eBPF agent launches concurrent, multiplexed goroutines—each pinned to a specific OS thread—to implement passive mode, which differs architecturally from active mode. These goroutines sniff traffic within a dedicated Linux namespace and its associated physical network device. They operate in zero-copy mode in userspace, similar to the active phase, where the kernel eBPF program redirects potentially layered DNS traffic for further inspection. All clone-redirected packets arriving in userspace contain both application data and lower-layer headers up to the transport layer. The userspace eBPF agent first parses the application payload, searching for embedded DNS structures. If no valid DNS layer is found, the extracted Layer 4 transport information is removed from the \texttt{src\_port\_task\_struct\_map}, using the source port as the key. If DNS data are identified within the tunneled application payload, the same evaluation logic as in active mode is followed. This includes extracting domain names and checking them against a local LRU cache in memory blacklist. If a match is found, the domain is marked as blacklisted. Otherwise, the packet undergoes feature extraction and is passed to a deep learning model. If the model detects the packet as malicious, the userspace blacklist LRU cache is updated accordingly, and a detected threat event is streamed to the observability backend in the same manner as active mode. Since this is a clone-redirected packet, it is not reinjected into the network. Instead, the eBPF agent uses the extracted source port to retrieve the associated process ID and thread ID from \texttt{task\_struct\_redirect\_ct\_map}, identifying a potentially malicious userspace process running alongside the eBPF agent. After retrieving this information, the eBPF agent updates the \texttt{malicious\_process\_map}, marking the parent process as malicious with a key-value entry of the process ID and a value of true. This allows the kernel eBPF program to drop all subsequent packets originating from that process. Additionally, the eBPF agent examines rich telemetry from \texttt{task\_struct\_redirect\_ct\_map} — specifically, the number of times the packet was clone-redirected — using the process ID and thread ID as keys (retrieved via \texttt{src\_port\_task\_struct\_map}). If the redirected count exceeds a configurable threshold and the associated process has been flagged as malicious, the eBPF agent — running with \texttt{CAP\_SYS\_ADMIN} capability — sends a kill signal to terminate the identified malicious process. With process-aware adaptive passive mode, the kernel eBPF program effectively aids the eBPF agent in threat-hunting processes that exfiltrate data over DNS via non-standard UDP ports. Once identified, the eBPF agent terminates the malicious process in userspace. \hyperref[sec:alg6]{Algorithm 6} explains in detail how the eBPF agent processes packets in passive mode.
 
-\subsection{\textbf{eBPF Maps concurrency handling}}
+\subsubsection{\textbf{eBPF Maps concurrency handling}}
 \label{passive:sec3}
 The map concurrency principles remain consistent with those in active mode, relying on per-CPU kernel spin locks with a globally shared eBPF map. This allows the eBPF program, scheduled across different CPUs, to update and reference-count map FDs, which remain alive as long as the eBPF agent process is active in userspace. However, this mode introduces specific concurrency handling for map updates. For \texttt{src\_port\_task\_struct\_map}, the unique key—representing the source port—ensures atomic read and write operations, starting in the kernel when a DNS packet first arrives, followed by a corresponding read in userspace. Similarly, \texttt{malicious\_process\_map}, which is updated by the userspace eBPF agent to mark processes as malicious, always uses the \texttt{BPF\_ANY} flag (create or update) for updates. As concurrent goroutines in userspace process sniffed packets in parallel, updates to this map are synchronized using a userspace mutex lock to ensure consistency. Since the kernel eBPF program across different CPUs only reads from this map, this design avoids blocking readers and improves packet processing throughput—similar to the RCU (read-copy-update) concept, which prioritizes performance and high-speed data access. Finally, for \texttt{task\_struct\_redirect\_ct\_map}, where the eBPF program in the kernel (executing on multiple CPUs) writes the redirect count while the eBPF agent in userspace reads it, consistency is maintained using the eBPF map’s internal spin lock mechanism along with the \texttt{BPF\_ANY} update flag. Concurrent reads in userspace are synchronized via a separate userspace mutex, decoupled from the kernel’s per-CPU spin locks. The \hyperref[sec:dp-passive-phase]{Figure 4.5} details the full userspace and kernel pipeline over TC. 
 
@@ -945,7 +945,7 @@ Fetch \texttt{is\_malicious} from \texttt{malicious\_process\_map} using \texttt
     % \item Value: \texttt{is\_malicious}
 \end{itemize}
 
-\If{not \texttt{is\_malicious}}{
+\If{not \texttt{is\_malicious} or \texttt{is\_malicious} is \texttt{null}}{
     Update \texttt{src\_port\_task\_struct\_map} with:
         \begin{itemize}[nosep]
             \item Key: \texttt{process\_id}
@@ -967,6 +967,14 @@ Fetch \texttt{is\_malicious} from \texttt{malicious\_process\_map} using \texttt
         \item Key: \texttt{if\_idx}
         \item Value: \texttt{new count}
     \end{itemize}
+    \If{\texttt{is\_malicious} is \texttt{null}}{
+        \tcp{Process send the DNS packet first time, the process is not yet found malicious}
+        Update \texttt{malicious\_process\_map} with:
+        \begin{itemize}[nosep]
+            \item Key: \texttt{process\_id}
+            \item Value: \texttt{false}
+        \end{itemize}
+    }
     Perform \texttt{bpf\_clone\_redirect(skb, bridge\_if\_index, BPF\_F\_INGRESS)}
 }
 \Else{
@@ -975,7 +983,9 @@ Fetch \texttt{is\_malicious} from \texttt{malicious\_process\_map} using \texttt
         \item Key: \texttt{task\_struct}
         \item Value: \texttt{current\_suspicious\_ct + 1}
     \end{itemize}
-    \Return \texttt{TC\_ACT\_SHOT}\; \tcp{Drop the packet exfiltration attempt found over the process}
+    Perform \texttt{bpf\_clone\_redirect(skb, bridge\_if\_index, BPF\_F\_INGRESS)}
+    \Return \texttt{TC\_ACT\_SHOT}\;
+    \tcp{Drop the packet exfiltration attempt found over the process, keep clone redirecting from kernel to monitor implant retry behavior, to be killed}
 }
 \end{algorithm}
 
@@ -1018,7 +1028,7 @@ Fetch \texttt{isBlacklistedSLDFound} from userspace LRU hash\;
 \If{\texttt{isBlacklistedSLDFound}}{
     Update \texttt{is\_malicious flag} in \texttt{malicious\_process\_map} with:
     \begin{itemize}[nosep]
-        \item Key: \texttt{kernel\_task\_struct}
+        \item Key: \texttt{process\_id}
         \item Value: \texttt{true}
     \end{itemize}
     Fetch \texttt{current\_suspicious\_ct} from \texttt{task\_struct\_redirect\_ct\_map} with:
@@ -1028,7 +1038,11 @@ Fetch \texttt{isBlacklistedSLDFound} from userspace LRU hash\;
     \end{itemize}
     \If{\texttt{current\_suspicious\_ct} $>$ \texttt{MAX\_MALICIOUS\_THRESHOLD}}{
         Send \texttt{SIGKILL} to \texttt{process\_id}\;
-        \tcp {terminate the malicious process id extracted before from \texttt{src\_port\_task\_struct\_map}}
+        \tcp{Terminate the malicious process previously extracted from \texttt{src\_port\_task\_struct\_map}, clean \texttt{malicious\_task\_struct\_map}}
+        Delete from \texttt{malicious\_process\_map} with:
+        \begin{itemize}[nosep]
+            \item Key: \texttt{process\_id}
+        \end{itemize}
     }
     \Return;
 }
@@ -1040,7 +1054,7 @@ Pass features to ONNX model for inference\;
     Blacklist SLD for related DNS records in userspace LRU malicious cache\;
     Update \texttt{is\_malicious flag} in \texttt{malicious\_process\_map} with:
     \begin{itemize}[nosep]
-        \item Key: \texttt{kernel\_task\_struct}
+        \item Key: \texttt{process\_id}
         \item Value: \texttt{true}
     \end{itemize}
     Fetch \texttt{current\_suspicious\_ct} from \texttt{task\_struct\_redirect\_ct\_map} with:
@@ -1050,7 +1064,11 @@ Pass features to ONNX model for inference\;
     \end{itemize}
       \If{\texttt{current\_suspicious\_ct} $>$ \texttt{MAX\_MALICIOUS\_THRESHOLD}}{
         Send \texttt{SIGKILL} to \texttt{process\_id}\;
-        \tcp{Terminate the malicious process previously extracted from \texttt{src\_port\_task\_struct\_map}}
+        \tcp{Terminate the malicious process previously extracted from \texttt{src\_port\_task\_struct\_map}, clean \texttt{malicious\_task\_struct\_map}}
+        Delete from \texttt{malicious\_process\_map} with:
+        \begin{itemize}[nosep]
+            \item Key: \texttt{process\_id}
+        \end{itemize}
     }
     \Return;
 }
@@ -1071,6 +1089,7 @@ Pass features to ONNX model for inference\;
 
 
 \subsection{DNS Exfiltration via Encapsulated Traffic}
+\label{sec:encap}
 In the Linux kernel network stack, encapsulated traffic is managed through virtualization drivers that extend the core \texttt{netdev} interface with associated RX and TX queues. These drivers support protocol encapsulation at various layers—L2, L3, and L4—by wrapping one protocol within another. 
 The current implementation of the eBPF agent focuses on L2-level encapsulation over software network devices, not on tunnels that rely on kernel cryptographic primitives via the keyring, such as those used by OpenVPN, IPsec, or WireGuard. This design choice aligns with the DNS protocol’s typical behavior, as DNS resolution rarely occurs over VPN tunnels. DNS exfiltration over encapsulated traffic in this context is limited to VLAN and TUN/TAP software network devices. VLAN encapsulation is similar and explained before in the SKB parsing in active phase by the TC eBPF program, where the eBPF program removes the L2 encapsulation layer (e.g., 802.1Q, 802.1AD) to expose the inner packet before proceeding with DPI.
 TUN/TAP interfaces are virtual software devices exposed to userspace as file descriptors. Malicious userspace processes can write tunneled packets containing DNS data directly to these interfaces, bypassing standard inspection paths. The kernel handles L3 encapsulation at the sender side and performs L2 de-encapsulation on the TAP (receiver) side before forwarding traffic upstream. These devices, typically created using \texttt{iproute2} or \texttt{netlink}, forward traffic through a physical NIC. In its current state, the eBPF agent handles only plaintext-encapsulated traffic. Since encapsulation by these network drivers occurs at higher layers of the kernel network stack, the SKB often lacks visibility into encapsulation details, except in the case of VLAN-tagged packets. To counter DNS tunneling over the TUN/TAP interfaces, the agent injects \texttt{kprobes} on the \texttt{tun\_chr\_open} kernel driver function, which is responsible for creating tunnel interfaces. When a new TUN/TAP device is created, an event is pushed to the userspace via a kernel ring buffer. The agent responds by attaching the same eBPF DPI program to the TC egress hook on the new interface, enforcing the same detection and prevention logic described in the active phase. 
@@ -1643,7 +1662,7 @@ The complete security framework, along with all supporting configuration files, 
 \section{Appendix A}
 This section focuses on providing additional details of the eBPF agents in data plane.
 
-\subsection{eBPF programs DNS parsing inside kernel}
+\subsection{DNS parsing inside kernel by eBPF  program}
 \hyperref[fig:c1]{Figure 7.1} illustrates additional internal implementation details, specifically the raw parsing of DNS questions inside the kernel from SKB using custom DNS protocol header structures defined within the kernel eBPF TC programs, as further shown in \hyperref[fig:c2]{Figure 7.2}. Considering the intensive parsing and enforcement performed by the kernel traffic control (TC) layer to classify DNS application payloads—an industry-first compared to existing academic and enterprise solutions—advanced benchmarking was conducted to measure internal kernel impact. The eBPF program was executed in parallel across different CPU cores, monitored using Netflix’s bpftop tool. Under a high-throughput benchmark of approximately 100,000 DNS requests per second, the kernel eBPF program’s CPU usage peaked at 4\% across 8 cores, with a minimum of 2\%. The program sustained processing of up to 17,063 events per second, excluding hardware interrupts and soft IRQ overhead, demonstrating the efficiency of kernel-resident eBPF logic within TC. \hyperref[fig:c3]{Figure 7.3} illustrates the kernel eBPF profiling results.
 
 \begin{center}
@@ -1669,7 +1688,7 @@ This section focuses on providing additional details of the eBPF agents in data 
 \end{figure}
 
 
-\subsection{eBPF programs DNS parsing inside kernel}
+\subsection{eBPF Agent exported metrics}
 \hyperref[sec:dp_ebpf_node_metrics]{Figure 7.1} describes all the details of the execution exported by each eBPF agent at the endpoint in data plane, with \hyperref[fig:dns-exfil-packet-metrics]{Figure 7.2} detailing some of the enhanced system-level metrics exported by the eBPF agent to Prometheus from eBPF map and ring buffers to Grafana a visualization tool to scrape Prometheus metrics.
 
 \begin{longtable}{|p{4cm}|p{10cm}|}
@@ -1963,7 +1982,7 @@ sudo ruby dnscat2.rb --dns 'host=<attacker_node>,domain=<c2_domain>'
 # 6 carry all the c2 attacks once compromised node is connected to C2 server.
 \end{lstlisting}
 
-\begin{lstlisting}[language=bash,caption={Steps to use Dnscat2 for Dns C2 with DNS port obfuscation layered random UDP port},label={lst:sliver-steps}]
+\begin{lstlisting}[language=bash,caption={Steps to use Dnscat2 for Dns C2 with DNS port obfuscation layered random UDP port},label={lst:dnscat2-steps-port-obfuscation}]
 # 1. Start Dnscat2 C2 server on attacker node with port obfuscation, DNS protocol itself tunnelled over random UDP port with internally tunnelling any protocol payload
 sudo ruby dnscat2.rb --dns 'host=<attacker_node>,port=<dns_overlay_udp_port>,domain=<c2_domain>'
 # 2. Connect to dnscat c2 server from compromised node in data plan
