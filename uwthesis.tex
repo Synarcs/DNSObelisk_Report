@@ -1643,10 +1643,7 @@ The complete security framework, along with all supporting configuration files, 
 This section focuses on providing additional details of the eBPF agents in data plane.
 
 \subsection{DNS parsing inside kernel by eBPF  program}
-\hyperref[fig:c1]{Figure 7.1} illustrates additional internal implementation details, specifically the raw parsing of DNS questions inside the kernel from SKB using custom DNS protocol header structures defined within the kernel eBPF TC programs, as further shown in \hyperref[fig:c2]{Figure 7.2}. Considering the intensive parsing and enforcement performed by the kernel traffic control (TC) layer to classify DNS application payloads—an industry-first compared to existing academic and enterprise solutions—advanced benchmarking was conducted to measure internal kernel impact. The eBPF program was executed in parallel across different CPU cores, monitored using Netflix’s bpftop tool. Under a high-throughput benchmark of approximately 100,000 DNS requests per second, the kernel eBPF program’s CPU usage peaked at 4\% across 8 cores, with a minimum of 2\%. The program sustained processing of up to 17,063 events per second, excluding hardware interrupts and soft IRQ overhead, demonstrating the efficiency of kernel-resident eBPF logic within TC. \hyperref[fig:c3]{Figure 7.3} illustrates the kernel eBPF profiling results. In addition to profiling kernel program usage and event-processing throughput, the eBPF agent—critical to traffic handling—was profiled using the Go \texttt{pprof} tool. The analysis focused on function call stacks, particularly those consuming the most CPU cycles within the userspace eBPF agent process. As expected, due to the agent’s heavy reliance on \texttt{libbpf} bindings, approximately 75\% of the total CPU usage was attributed to BPF-related syscalls. This reflects the agent’s dependence on frequent kernel interactions to access and manipulate eBPF program internals. \hyperref[fig:c4]{Figure 7.4} presents the corresponding userspace flame graph.
-
-
-optimal application profiling the eBPF agent in userspace was as well 
+\hyperref[fig:c1]{Figure 7.1} illustrates additional internal implementation details, specifically the raw parsing of DNS questions inside the kernel from SKB using custom DNS protocol header structures defined within the kernel eBPF TC programs, as further shown in \hyperref[fig:c2]{Figure 7.2}. Considering the intensive parsing and enforcement performed by the kernel traffic control (TC) layer to classify DNS application payloads—an industry-first compared to existing academic and enterprise solutions—advanced benchmarking was conducted to measure internal kernel impact. The eBPF program was executed in parallel across different CPU cores, monitored using Netflix’s bpftop tool. Under a high-throughput benchmark of approximately 100,000 DNS requests per second, the kernel eBPF program’s CPU usage peaked at 4\% across 8 cores, with a minimum of 2\%. The program sustained processing of up to 17,063 events per second, excluding hardware interrupts and soft IRQ overhead, demonstrating the efficiency of kernel-resident eBPF logic within TC. \hyperref[fig:c3]{Figure 7.3} illustrates the kernel eBPF profiling results. In addition to profiling kernel program usage and event-processing throughput, the eBPF agent—critical to traffic handling—was profiled using the Go \texttt{pprof} tool. The analysis focused on function call stacks, particularly those consuming the most CPU cycles within the userspace eBPF agent process. As expected, due to the agent’s heavy reliance on \texttt{libbpf} bindings, approximately 75\% of the total CPU usage was attributed to BPF-related syscalls. This reflects the agent’s dependence on frequent kernel interactions to access and manipulate eBPF program internals. \hyperref[fig:c4]{Figure 7.4} presents the corresponding userspace flame graph. 
 
 \begin{figure}
     \centering
@@ -1673,13 +1670,13 @@ optimal application profiling the eBPF agent in userspace was as well
 \begin{figure}[H]
     \centering
     \includegraphics[width=\linewidth]{UWThesis/images/results/pprof/cpu_flame_graph.png}
-    \caption{Kernel eBPF Programs Profiling}
+    \caption{eBPF Agent: Flame Graph}
     \label{fig:c4}
 \end{figure}
 
 
 \subsection{eBPF Agent exported metrics}
-\hyperref[sec:dp_ebpf_node_metrics]{Figure 7.1} describes all the details of the execution exported by each eBPF agent at the endpoint in data plane, with \hyperref[fig:dns-exfil-packet-metrics]{Figure 7.2} detailing some of the enhanced system-level metrics exported by the eBPF agent to Prometheus from eBPF map and ring buffers to Grafana a visualization tool to scrape Prometheus metrics.
+\hyperref[sec:dp_ebpf_node_metrics]{Table 7.1} describes all the details of the execution exported by each eBPF agent at the endpoint in data plane, with \hyperref[fig:dns-exfil-packet-metrics]{Figure 7.6} detailing some of the enhanced system-level metrics exported by the eBPF agent to Prometheus from eBPF map and ring buffers to Grafana a visualization tool to scrape Prometheus metrics.
 
 \begin{longtable}{|p{4cm}|p{10cm}|}
 \hline
