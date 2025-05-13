@@ -1565,10 +1565,10 @@ This chapter concludes the whole paper by summarizing the contents and give futu
 
 
 \section{Summary}
-This security framework significantly advances the state-of-the-art by developing a novel architecture to prevent data exfiltration over DNS, directly addressing the critical gaps left by traditional approaches. The existing literature and solutions for DNS exfiltration prevention remain largely stagnant, centered on centralized detection and userspace anomaly detection systems or proxy DPI, which are inherently inadequate and lack the strength to stop sophisticated DNS-based exfiltration, especially those leveraging C2 implants or APT malware once the system is compromised. In contrast, this framework introduces a new paradigm: kernel-enforced endpoint security. It acts as a privileged layer beneath existing endpoint security solutions, enabling strict enforcement in conjunction with eBPF agents. With security code running inside the kernel, these agents at the endpoint possess unprecedented defensive strength stopping and killing even the most advanced forms of DNS C2 implants and threats such as remote code execution, shellcode exploits, port forwarding, reverse tunnels, and SOCKS tunnels in real-time often used by most reputable adversary emulation tools actively used in production by red teamers.
-Furthermore, by combining a layered approach with system-security-first with an endpoint-centric design, it significantly improves endpoint security in ways that were never possible when relying solely on userspace. The architecture developed is a deeply integrated system-level defense that provides unprecedented visibility into OS activity, enables intelligent threat hunting, and robustly thwarts advanced exfiltration techniques in real time. This research and implementation has been recognized by the primer Linux kernel community, kernel maintainers for innovations having being presented at the most selective and prestigious kernel networking and security conferences. In addition, it is inline to be presented at some of the largest and highest reputed kernel security conferences, showcasing innovations to advance DNS security with the goal of avoiding exploitation of DNS due to its critical needs for data exfiltration and protecting enterprises from these evolving DNS threats. The following points summarize the strengths of the security framework.
+This security framework significantly advances the state-of-the-art by developing a novel architecture to prevent data exfiltration over DNS, directly addressing the critical gaps left by traditional approaches. The existing literature and solutions for DNS exfiltration prevention remain largely stagnant, centered on centralized detection and userspace anomaly detection systems or proxy DPI, which are inherently inadequate and lack the strength to stop sophisticated DNS-based exfiltration, especially those leveraging C2 implants or APT malware once the system is compromised. In contrast, this framework introduces a new paradigm: kernel-enforced endpoint security. It acts as a privileged layer beneath existing endpoint security solutions, enabling strict enforcement in conjunction with eBPF agents. With security code running inside the kernel, these endpoint agents provide unprecedented defensive strength—stopping and killing even the most advanced DNS C2 implants and real-time threats like remote code execution, shellcode, port forwarding, reverse tunnels, and SOCKS tunnels. These techniques are commonly used by top-tier adversary emulation tools actively deployed by red teams in production environments.
+Furthermore, by combining a layered, system-security-first approach with an endpoint-centric design, this architecture elevates endpoint defense beyond the limitations of userspace alone. It delivers deeply integrated, system-level protection with unprecedented visibility into OS activity, enabling intelligent threat hunting and real-time prevention of advanced exfiltration techniques. This research and implementation has been recognized by the primer Linux kernel community, kernel maintainers for innovations having being presented at the most selective and prestigious kernel networking and security conferences. In addition, this work is scheduled to be presented at leading kernel security conferences, showcasing innovations that advance DNS security to prevent data exfiltration and C2 activity, with a focus on mitigating emerging attack vectors that exploit DNS. The following points summarize the strengths of the security framework.
 
-\vspace{-15pt}
+\vspace{-8pt}
 \begin{itemize}[nosep]
     \item \textbf{Instant DNS C2 Disruption} – Immediately blocks DNS-based command-and-control channels upon initiation, stopping covert communication at the source.
 
@@ -1578,7 +1578,7 @@ Furthermore, by combining a layered approach with system-security-first with an 
 
     \item \textbf{Reverse and Port-Forwarded Tunnel Neutralization} – Stops reverse shells, SOCKS5 proxies, and port-forwarded advanced commands tunneled inside DNS between compromised and attacker-controlled nodes.
 
-    \item \textbf{DGA Mitigation with Deep Observability} – Dynamically blacklists  domains, reprogram agents in data plane and enforce layer 3 network policies for cross protocol coorelation.
+    \item \textbf{DGA Mitigation with dynamic L3 kernel Network Policies} – Dynamically blacklists  domains, reprogram agents in data plane and enforce layer 3 network policies for cross protocol coorelation.
 
     \item \textbf{Rich metrics and system observability} – Exports rich metrics to Prometheus for visibility of system level observability at each endpoints.
 
@@ -1643,12 +1643,15 @@ The complete security framework, along with all supporting configuration files, 
 This section focuses on providing additional details of the eBPF agents in data plane.
 
 \subsection{DNS parsing inside kernel by eBPF  program}
-\hyperref[fig:c1]{Figure 7.1} illustrates additional internal implementation details, specifically the raw parsing of DNS questions inside the kernel from SKB using custom DNS protocol header structures defined within the kernel eBPF TC programs, as further shown in \hyperref[fig:c2]{Figure 7.2}. Considering the intensive parsing and enforcement performed by the kernel traffic control (TC) layer to classify DNS application payloads—an industry-first compared to existing academic and enterprise solutions—advanced benchmarking was conducted to measure internal kernel impact. The eBPF program was executed in parallel across different CPU cores, monitored using Netflix’s bpftop tool. Under a high-throughput benchmark of approximately 100,000 DNS requests per second, the kernel eBPF program’s CPU usage peaked at 4\% across 8 cores, with a minimum of 2\%. The program sustained processing of up to 17,063 events per second, excluding hardware interrupts and soft IRQ overhead, demonstrating the efficiency of kernel-resident eBPF logic within TC. \hyperref[fig:c3]{Figure 7.3} illustrates the kernel eBPF profiling results.
+\hyperref[fig:c1]{Figure 7.1} illustrates additional internal implementation details, specifically the raw parsing of DNS questions inside the kernel from SKB using custom DNS protocol header structures defined within the kernel eBPF TC programs, as further shown in \hyperref[fig:c2]{Figure 7.2}. Considering the intensive parsing and enforcement performed by the kernel traffic control (TC) layer to classify DNS application payloads—an industry-first compared to existing academic and enterprise solutions—advanced benchmarking was conducted to measure internal kernel impact. The eBPF program was executed in parallel across different CPU cores, monitored using Netflix’s bpftop tool. Under a high-throughput benchmark of approximately 100,000 DNS requests per second, the kernel eBPF program’s CPU usage peaked at 4\% across 8 cores, with a minimum of 2\%. The program sustained processing of up to 17,063 events per second, excluding hardware interrupts and soft IRQ overhead, demonstrating the efficiency of kernel-resident eBPF logic within TC. \hyperref[fig:c3]{Figure 7.3} illustrates the kernel eBPF profiling results. In addition to profiling kernel program usage and event-processing throughput, the eBPF agent—critical to traffic handling—was profiled using the Go \texttt{pprof} tool. The analysis focused on function call stacks, particularly those consuming the most CPU cycles within the userspace eBPF agent process. As expected, due to the agent’s heavy reliance on \texttt{libbpf} bindings, approximately 75\% of the total CPU usage was attributed to BPF-related syscalls. This reflects the agent’s dependence on frequent kernel interactions to access and manipulate eBPF program internals. \hyperref[fig:c4]{Figure 7.4} presents the corresponding userspace flame graph.
+
+
+optimal application profiling the eBPF agent in userspace was as well 
 
 \begin{figure}
+    \centering
   \includegraphics[width=\linewidth]{UWThesis/images/code/c1.png}
-  \newline
-  \textbf{Figure X:} DNS Protocol custom Header definitions and parsing in kernel
+  \caption{DNS Protocol custom Header definitions and parsing in kernel}
   \label{fig:c1}
 \end{figure}
 
@@ -1665,6 +1668,13 @@ This section focuses on providing additional details of the eBPF agents in data 
     \includegraphics[width=\linewidth]{UWThesis/images/kernel_bpftop.png}
     \caption{Kernel eBPF Programs Profiling}
     \label{fig:c3}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{UWThesis/images/results/pprof/cpu_flame_graph.png}
+    \caption{Kernel eBPF Programs Profiling}
+    \label{fig:c4}
 \end{figure}
 
 
