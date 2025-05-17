@@ -651,7 +651,7 @@
        \Programtext{Program Authorized to Offer Degree: }
 
 \def\textofCommittee#1{\gdef\@textofCommittee{#1}}  
-       \textofCommittee{Project Committee: }
+       \textofCommittee{Reading Committee: }
 \def\textofDate#1{\gdef\@textofDate{#1}}  \textofDate{Date}
 
 \def\textofChair#1{\gdef\@textofChair{#1}}

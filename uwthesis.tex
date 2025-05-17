@@ -143,8 +143,12 @@
 
 
 \abstract{%
-Data exfiltration remains one of the most persistent and sophisticated threats in cybersecurity, with the Domain Name System (DNS) frequently exploited as a covert channel for tunneling and command-and-control (C2) communications. This threat is especially critical for hyperscalers, where the majority of servers run Linux. This threat is especially critical for hyperscalers, with most servers running Linux, as the surge in AI workloads demands massive data storage while simultaneously hosting sensitive client data at scale, both on-prem and across distributed cloud environments. DNS remains highly vulnerable due to its ubiquity, inherit security flaws, and its fundamental role in enterprise networks. As highlighted in the IBM 2024 Data Breach Report, the average cost of a data breach now exceeds \$4.8 million, with DNS-based exfiltration posing catastrophic risks that are notoriously hard to mitigate in real time. This paper presents a novel and scalable framework for real-time prevention of DNS-based data exfiltration, including advanced C2 implants, across distributed environments. The system is built around lightweight, agent-based, endpoint-centric enforcement and leverages deep packet inspection through eBPF injected directly inside the Linux kernel’s traffic control layer. These kernel-resident programs enable raw, per-packet parsing of outbound DNS traffic at high speed, aided by dense neural networks in userspace that perform real-time lexical analysis to detect obfuscated or malicious payloads. Active defense is enforced directly from within the operating system by terminating malicious processes upon detection, accelerating incident response, and immediately containing compromise at the source.
-Telemetry, including process identifiers, lifetimes, and DNS usage patterns, is exported per node to Kafka brokers, enabling dynamic domain blacklisting and DNS-based policy enforcement throughout the network. The security framework architecture supports massive scalability and enforces real-time cross-node security policies without relying on external security middleware or firewalls. By combining deep in-kernel inspection, AI-assisted detection, dynamic in-kernel network policy enforcement, and process-level active defense, this framework minimizes attacker dwell time, blocks lateral movement, and significantly enhances visibility and response for defenders operating in large-scale, production-grade cloud and on-premise environments.
+Data exfiltration remains one of the most persistent and sophisticated threats in cybersecurity, with the Domain Name System (DNS) frequently exploited as a covert channel for tunneling and command-and-control (C2) communications. This threat is especially critical for hyperscalers, where fleets of Linux servers handle the explosive growth of AI workloads, driving massive data storage demands while simultaneously hosting sensitive client data at scale, both on-premises and across distributed cloud environments. DNS remains highly vulnerable due to its ubiquity, inherit security flaws, and its fundamental role in enterprise networks. As highlighted in the IBM 2024 Data Breach Report, the average cost of a data breach now exceeds \$4.8 million. DNS-based exfiltration, in particular, poses catastrophic and stealthy risks—especially difficult to detect and mitigate in real time across massively scaled cloud infrastructures. 
+
+This capstone project presents a novel and scalable framework for real-time prevention of DNS-based data exfiltration across distributed environments, capable of neutralizing even the most advanced C2 techniques. The system is built around lightweight, agent-based, endpoint-centric enforcement and leverages deep packet inspection through eBPF injected directly inside the Linux kernel’s traffic control layer. These kernel-resident programs enable raw, per-packet parsing of outbound DNS traffic at high speed, aided by dense neural networks in userspace that perform real-time lexical analysis to detect obfuscated or malicious payloads. Active defense is enforced directly from within the operating system by terminating  malicious processes exfiltrating data upon detection, accelerating incident response, and immediately containing compromise at the source.
+Telemetry, including process identifiers, lifetimes, and DNS usage patterns, is exported per node to Kafka brokers, enabling dynamic domain blacklisting and DNS-based policy enforcement throughout the network. The security framework architecture supports massive scalability and enforces real-time cross-node security policies without relying on external security middleware or firewalls. 
+
+Experimental results demonstrate the horizontal scalability of the framework, making it suitable for production-grade cloud environments. The security strength is unparalleled, not only preventing advanced forms of DNS data exfiltration but also actively disrupting the most sophisticated C2 attacks over DNS by terminating highly evasive tools used in real-world operations. This capstone research and implementation has received recognition from the premier Linux kernel community, leading security researchers, and conferences, and generated strong interest from the industry for its innovations. By delivering the industry’s first solution to combine deep in-kernel inspection, AI-assisted detection, dynamic in-kernel network policy enforcement, and process-level active defense, the framework minimizes attacker dwell time, blocks lateral movement, and significantly enhances visibility and response for defenders in large-scale cloud and on-premise environments.
 }
  
 %
@@ -185,13 +189,14 @@ Existing solutions primarily rely on passive analysis techniques such as anomaly
 There is a critical need for a robust endpoint-centric defense mechanism that enforces DNS security from within the operating system itself, rather than relying on passive userspace monitoring or centralized anomaly detection tools. As cloud providers face increasing demand for secure, high-availability infrastructure, there is a growing requirement for systems that can instantly neutralize malicious implants at the source reducing response time and actively blocking DNS-based exfiltration in real time supporting dynamic domain blacklisting, thereby protecting endpoints across the network without requiring human intervention for safeguarding massively scaled, multiregion cloud environments, where DNS is critical for business operations.
 The \hyperref[sec:apt_malware_flow]{Figure 1.1} illustrates the lifecycle of an implant. By severing DNS C2 links and immediately terminating the implant, lateral movement is prevented and attacker control is disrupted at the first stage.
 \begin{figure}[H]
-\includegraphics[width=1\textwidth]{UWThesis/images/apt_malware.png}
+\centering
+\includegraphics[width=\textwidth]{UWThesis/images/apt_malware.png}
 \caption{APT Malware Exploitation Phases}
 \label{sec:apt_malware_flow}
 \end{figure}
 
-\section{Objective}
-This project presents an endpoint-centric security framework designed to prevent DNS-based data exfiltration in real time across distributed systems running the Linux kernel. By embedding detection and enforcement logic directly in the kernel using eBPF, the framework identifies and terminates DNS C2 implants, disrupts command-and-control communication, and blocks DNS tunneling and obfuscated payloads. The design enables rapid threat mitigation, comprehensive visibility, and scalable zero trust enforcement across multiple nodes.
+% \section{Objective}
+% This project presents an endpoint-centric security framework designed to prevent DNS-based data exfiltration in real time across distributed systems running the Linux kernel. By embedding detection and enforcement logic directly in the kernel using eBPF, the framework identifies and terminates DNS C2 implants, disrupts command-and-control communication, and blocks DNS tunneling and obfuscated payloads. The design enables rapid threat mitigation, comprehensive visibility, and scalable zero trust enforcement across distributed environmnets.
 
 
 % \section{Objective}
@@ -199,11 +204,11 @@ This project presents an endpoint-centric security framework designed to prevent
 % By combining advanced Linux kernel programming (v5.2+), deep learning–assisted threat detection, and real-time security enforcement in distributed systems over DNS servers, the project addresses a critical gap in securing DNS which both research and enterprise security solutions lack.
 
 \chapter {Background}
-This chapter outlines the Linux kernel’s network stack internals, the role of eBPF for dynamic in-kernel security enforcement and the limitations of the DNS protocol that enable various forms of data exfiltration.
+This chapter provides a comprehensive overview of the internals of the Linux kernel network stack, the role of eBPF for dynamic security enforcement within the kernel, the complexity, emerging threats, and types of DNS data exfiltration, and the fundamental limitations of the DNS protocol that enable various forms of data exfiltration and exploitation.
 
 \section{eBPF}
 The extended Berkeley Packet Filter (eBPF) was introduced in Linux kernel version 3.15 (2014) as a general-purpose in-kernel virtual machine. It evolved from classic BPF \cite{10.5555/1267303.1267305}, which was originally limited to packet filtering through a domain-specific language and lacked the flexibility to inject custom logic into the kernel.
-Unlike kernel modules, which can destabilize the system, eBPF enables safe, dynamic programmability by injecting verified code into the kernel without compromising stability or security. Several other approaches enable programmable datapaths using domain-specific languages, such as P4 \cite{bosshart2014p4} for hardware switches, and DPDK (Data Plane Development Kit) \cite{8701793}, which bypasses the kernel network stack by polling Network Interface Cards (NICs) directly in userspace to achieve high throughput and low latency. However, these approaches lack direct access to core kernel security subsystems, resulting in limited visibility into process identity, syscall activity, and the kernel’s mandatory access control layers. Furthermore, their abstraction over the kernel network stack hinders deep packet inspection (DPI) of application-layer protocols, making advanced analysis of malicious traffic more difficult inside kernel. Without process-level context or in-kernel enforcement capabilities, these approaches fall short in implementing fine-grained security policies. In contrast, solutions like eBPF, which are tightly integrated with kernel subsystems, retain full context over both the security framework and network stack, enabling real-time enforcement and significantly stronger security guarantees. eBPF programs are written in a restricted subset of C, compiled to bytecode via LLVM, and executed safely by the in-kernel eBPF virtual machine. They operate under a strict execution model: a RISC-like instruction set, eleven 64-bit general-purpose registers, a 512-byte stack, and a hard cap of one million instructions. The resulting bytecode is architecture-agnostic, enabling portability across hardware platforms that support the Linux kernel.
+Unlike kernel modules, which can destabilize the system, eBPF enables safe, dynamic programmability by injecting verified code into the kernel without compromising stability or security. Several other approaches enable programmable datapaths using domain-specific languages, such as P4 \cite{bosshart2014p4} for hardware switches, and DPDK (Data Plane Development Kit) \cite{8701793}, which bypasses the kernel network stack by polling Network Interface Cards (NICs) directly in userspace to achieve high throughput and low latency. However, these approaches lack direct access to core kernel security subsystems, resulting in limited visibility into process identity, syscall activity, and the kernel’s mandatory access control layers. Furthermore, their abstraction over the kernel network stack hinders deep packet inspection (DPI) of application-layer protocols, making advanced analysis of malicious traffic more difficult inside kernel. Without process-level context or in-kernel enforcement capabilities, these approaches fall short in implementing fine-grained security policies. In contrast, solutions like eBPF, which are tightly integrated with kernel subsystems, retain full context over both the security subsystems and network stack, enabling real-time enforcement and significantly stronger security guarantees. eBPF programs are written in a restricted subset of C, compiled to bytecode via LLVM, and executed safely by the in-kernel eBPF virtual machine. They operate under a strict execution model: a RISC-like instruction set, eleven 64-bit general-purpose registers, a 512-byte stack, and a hard cap of one million instructions. The resulting bytecode is architecture-agnostic, enabling portability across hardware architectures that support the Linux kernel.
 To further support compatibility across different kernel versions, eBPF uses BPF Type Format (BTF) to encode type information, enabling introspection, debugging, and safe reuse of eBPF programs across different kernel versions. Before execution, the kernel’s BPF verifier statically analyzes the bytecode to ensure memory safety, bounded loops, and control flow integrity. This strict verification model makes eBPF an ideal foundation for in-kernel security applications, mitigating risks from malicious code while ensuring system stability. In addition, eBPF programs are JIT-compiled, minimizing performance overhead. Because eBPF programs run in a sandboxed kernel environment, they can safely access internal kernel subsystems, which is particularly useful for security sensitive programs requiring low-level inspection of networking stacks or access to the Linux Security Module (LSM) layer. A key strength is the use of eBPF maps: persistent, kernel-resident key value stores that support various data structures (e.g., stacks, queues, LRU caches). These maps enable stateful security applications to share data between userspace and the kernel, persist state across program lifetimes via pinning to the BPF virtual filesystem, and dynamically reprogram kernel behavior at runtime, particularly valuable for eBPF programs that enforce adaptive security policies in coordination with advanced userspace analysis. All eBPF interactions—program loading, unloading, and map management—occur through the \texttt{bpf()} syscall, typically limited to privileged users with \texttt{CAP\_BPF} or \texttt{CAP\_SYS\_ADMIN} to minimize the attack surface. This architecture positions eBPF as a robust foundation for advanced security enforcement, enabling real-time detection and prevention of data exfiltration, while also supporting deep observability, fine-grained tracing, and in-kernel policy enforcement. \hyperref[fig:eBPF-injection]{Figure 2.1} outlines the four key phases in the eBPF lifecycle—development, compilation, loading with verification, and runtime attachment—focusing on monitoring \texttt{socket\_write} operations from userspace.
 
  % Once verified, the kernel can further optimize the program using in-kernel Just-In-Time (JIT) compilation, benefiting from both LLVM optimizations during compilation and runtime JIT enhancements after attachment. eBPF programs interact with userspace via maps—persistent, kernel-resident key-value data structures. These maps allow secure sharing of state and come in various types optimized for different use cases, such as BPF\_MAP\_TYPE\_LRU\_HASH, BPF\_MAP\_TYPE\_LPM\_TRIE, and BPF\_MAP\_TYPE\_STACK. Maps can be accessed using a map ID or a pinned file descriptor through the BPF virtual file system, enabling persistence beyond the lifetime of the original userspace loader.Program loading and interaction are tightly controlled through a single syscall: bpf(). Kernel-level Mandatory Access Control and Linux capabilities (e.g., CAP\_BPF, CAP\_NET\_ADMIN) are enforced to reduce the attack surface. For instance, attaching eBPF programs to the network data path requires CAP\_NET\_ADMIN, especially when managing network interfaces via AF\_NETLINK sockets. Once injected, eBPF programs are attached to various kernel hook points—network stack, scheduler, security modules—using kernel probes, tracepoints, or userland hooks.
@@ -258,7 +263,7 @@ This broad hook coverage allows eBPF to power everything from performance profil
 
 \begin{figure}
 \includegraphics[width=1.0\textwidth]{images/kernel_datapath.png}
-\caption{eBPF hooks over Linux Kernel Data Path}
+\caption{eBPF hooks over Linux Kernel Network DataPath}
 \label{sec:ebpf-hooks-kernel-network-datapath}
 \end{figure}
 
@@ -304,7 +309,7 @@ require elevated privileges (e.g., \texttt{CAP\_NET\_ADMIN}), the sporadic natur
 makes detection through passive monitoring particularly challenging.
 
 \subsubsection{DNS Command and Control (C2)}
-DNS-based C2 is an advanced form of tunneling that establishes persistent, covert communication channels between implants and attacker infrastructure. These implants send DNS queries to poll encoded instructions and execute commands on compromised systems. Responses may include the output of previous commands or new instructions, enabling full duplex control. The consequences extend beyond mere data exfiltration to more advanced and catastrophic threats, such as opening persistent backdoors, enabling port forwarding, or establishing reverse tunnels via DNS to expose internal services to the attacker. To evade detection, these channels often alternate between rapid polling and low-frequency beaconing. Sophisticated variants employ cross-protocol techniques, IP rotation, and domain generation algorithms (DGAs) to bypass static defenses. Conventional approaches, such as blacklists and rule-based systems, are insufficient against such adaptive, stealthy threats. Early stage detection and immediate endpoint disruption are critical, as even short-lived persistence can lead to further compromise. Currently, no known research or proprietary solution provides real-time termination of both the DNS C2 channel and its corresponding implant process at the endpoint, especially before malicious commands are executed or data are exfiltrated.
+DNS-based C2 is an advanced form of tunneling that establishes persistent, covert communication channels between C2 implants on compromised nodes and attacker infrastructure. These implants send DNS queries to poll encoded instructions and execute commands on compromised systems. Responses may include the output of previous commands or new instructions, enabling full duplex control client-server-type communication. The consequences extend beyond mere data exfiltration to more advanced and catastrophic threats, such as opening persistent backdoors, enabling port forwarding, or establishing reverse tunnels via DNS to expose internal services to the attacker. To evade detection, these channels often alternate between rapid polling and low-frequency beaconing. Sophisticated variants employ cross-protocol techniques, IP rotation, and domain generation algorithms (DGAs) to bypass static defenses. Conventional approaches, such as blacklists and rule-based systems, are insufficient against such adaptive, stealthy threats. Moreover, the most complex form of C2—referred to as C2 multiplayer modes—leverages multiple C2 operators or botnets to simultaneously exploit several compromised nodes. This renders traditional anomaly detection systems that passively analyze DNS traffic volumes effectively worthless. Early stage detection and immediate disruption at endpoint are critical, as even short-lived persistence can lead to further compromise. Currently, no known research or proprietary solution provides real-time termination of both the DNS C2 channel and its corresponding implant process at the endpoint, especially before malicious commands are executed or data are exfiltrated.
 
 
 \subsubsection{DNS Raw Exfiltration}
@@ -335,7 +340,7 @@ To date, the most widely deployed preventive mechanisms for DNS-based exfiltrati
 \item \textbf{DNS Sinkholing}: Redirects queries for known malicious domains to controlled endpoints, preventing external resolution.
 \item \textbf{Response Policy Zones (RPZ)}: Enable DNS servers to enforce custom filtering policies based on domain patterns or IP addresses.
 \end{itemize}
-Although these techniques effectively block malicious domains using declarative policies or access control lists to protect internal networks, they remain fundamentally reactive. Most rely on static blacklists generated after detection via intrusion alerts or passive deep packet inspection. As a result, DNS-based data exfiltration or malicious commands over the DNS C2 channel can succeed before server rules are updated and enforced. In addition, these methods are not equipped to stop C2 implants that use DGA, causing more damage before filtering policies can adapt due to the persistent and evolving and concealing nature of the C2 infrastructure.
+Although these techniques effectively block malicious domains using declarative policies or access control lists to protect internal networks, they remain fundamentally reactive. Most rely on static blacklists generated after detection via intrusion alerts or passive DPI. As a result, DNS-based data exfiltration or malicious commands over the DNS C2 channel can succeed before server rules are updated and enforced. In addition, these methods are not equipped to stop C2 implants that use DGA, causing more damage before filtering policies can adapt due to the persistent and evolving and concealing nature of the C2 infrastructure.
 
 
 % \section{DNS Resolution Flow and Kernel Interaction on Linux}
@@ -452,7 +457,7 @@ The implementation of the eBPF agents deployed on the data plane nodes is organi
 
 \subsection{Strict Enforcement Active Mode}
 \label{sec:active}
-After injecting the eBPF programs and attaching them as direct-action filters to the kernel TC egress CLSACT QDISC on all physical network interfaces, the eBPF program is triggered as soon as a packet is queued by the kernel to the CLSACT QDISC. At this point, within the QDISC egress filter, the kernel provides a fully formed SKB that has already traversed the upper layers of the kernel network stack and is ready for transmission according to the default netdev queuing policies, ultimately reaching the NIC TX queues. The eBPF program runs on multiple CPU cores in parallel. All eBPF maps in this mode are global, and the kernel handles concurrent access to ensure synchronization across cores. The details of the implementation for this mode are organized as follows. First, the \hyperref[sec:dp_eBPF_LRU_Maps_active]{maps} section explains the structure of the eBPF LRU hash maps used to store state information and manage packet flow. Next, the netflow across the kernel and userspace is explained as follows:
+After injecting the eBPF programs and attaching them as direct-action filters to the kernel TC egress CLSACT QDISC on all physical network interfaces, the eBPF program is triggered as soon as a packet is queued by the kernel to the CLSACT QDISC. At this point, within the QDISC egress filter, the kernel provides a fully formed SKB that has already traversed the upper layers of the kernel network stack and is ready for transmission according to the default netdev queuing policies, ultimately reaching the NIC TX queues. The eBPF program runs on multiple CPU cores in parallel. All eBPF maps in this mode are global, and the kernel handles concurrent access to ensure synchronization across cores. The details of the implementation for this mode are organized as follows. First, the \hyperref[sec:dp_eBPF_LRU_Maps_active]{maps} section explains the structure of the eBPF LRU hash maps used to store state information and manage packet flow and their significance in this mode, as illustrated in \hyperref[sec:dp_eBPF_LRU_Maps_active]{Figure 4.2}. Next, the netflow across the kernel and userspace is explained as follows:
 The section \hyperref[active:sec1]{kernel eBPF filter packet classify} describes how incoming packets are classified and actions in the egress TC filter, using SKB metadata, and handling redirection after deep scans from userspace performing enhanced security checks. \hyperref[active:sec3]{Userspace eBPF agent packet handling} details sniffed packet processing by the agent in zero copy mode, while \hyperref[active:sec3]{Concurrency handling} covers the synchronization between shared eBPF maps between the kernel and the userspace, including safe parallel execution across CPU cores.
 
 % maps definition structure in passive phase 
@@ -777,7 +782,7 @@ Fetch \texttt{isSLDBenign} from eBPF agent's userspace LRU map of top 1M SLDs\;
 
 \subsection{Process-Aware Adaptive Passive Threat Hunting Mode}
 \label{sec:passive}
-The same eBPF program attached to the egress CLSACT TC filter, as described in \hyperref[sec:active]{active mode}, is reused for passive mode. It is attached to all physical netdev interfaces at the endpoint. The implementation of this mode is structured as follows. First, \hyperref[sec:maps]{maps} describes the structures of the eBPF map, their types, and their specific significance in the passive mode. Second, \hyperref[passive:sec1]{kernel packet processing} details how the kernel eBPF program drops malicious exfiltrated packets, which are uniquely tied to the userspace processes responsible for sending them. This section also explains how additional kernel tracepoints, particularly those related to process scheduling, are used to perform garbage collection on map values. Third, \hyperref[passive:sec2]{userspace packet processing} outlines how the eBPF agent handles packets in this mode. Finally, \hyperref[passive:sec3]{eBPF map concurrency} covers how the system maintains consistency between the kernel and userspace, even when multiple userspace threads and eBPF kernel programs scheduled in parallel across different CPU cores read or update the eBPF maps.
+The same eBPF program attached to the egress CLSACT TC filter, as described in \hyperref[sec:active]{active mode}, is reused for passive mode. It is attached to all physical netdev interfaces at the endpoint. The implementation of this mode is structured as follows. First, \hyperref[sec:maps]{maps} describes the structures of the eBPF map, their types, and their specific significance in the passive mode, as illustrated in \hyperref[sec:dp_eBPF_LRU_Maps_passive]{Figure 4.4}. Second, \hyperref[passive:sec1]{kernel packet processing} details how the kernel eBPF program drops malicious exfiltrated packets, which are uniquely tied to the userspace processes responsible for sending them. This section also explains how additional kernel tracepoints, particularly those related to process scheduling, are used to perform garbage collection on map values. Third, \hyperref[passive:sec2]{userspace packet processing} outlines how the eBPF agent handles packets in this mode. Finally, \hyperref[passive:sec3]{eBPF map concurrency} covers how the system maintains consistency between the kernel and userspace, even when multiple userspace threads and eBPF kernel programs scheduled in parallel across different CPU cores read or update the eBPF maps.
 
 
 % maps definition structure in passive phase 
@@ -1333,7 +1338,7 @@ This chapter evaluates the effectiveness of the security framework in a distribu
 
 
 \section{Environment Setup}
-The security framework was deployed across eight CSSVLAB nodes (CSSVLAB{01–08}), each running Ubuntu 24.02 with Linux kernel 6.12 on Intel Xeon Gold 6130. Each node had 8GB RAM and 24GB storage. The systems ran under the hv\_netvsc hypervisor network driver, with 100 Gbits/sec network bandwidth and 8 TX/RX hardware queues aligned to CPU cores to enable optimal packet steering and parallel processing for high-throughput netflow handling. In addition, all 8 CPU cores existed inside a single NUMA node. The test bench launches a custom PowerDNS authoritative and recursor server on CSSVLAB08. The controller and a Kafka single broker instance run on CSSVLAB01. Nodes CSSVLAB{02–07}, excluding CSSVLAB06, act as the data plane, each running the eBPF agent and using the custom PowerDNS server as the default resolver via systemd-resolved. CSSVLAB06 is used to simulate DNS exfiltration attacks against data plane nodes, tunneling DNS queries through the same PowerDNS instance. The full deployment is illustrated in \hyperref[sec:deployed-arch]{Figure 5.1}.
+The security framework was deployed across eight CSSVLAB nodes (CSSVLAB{01–08}), each running Ubuntu 24.02 with Linux kernel 6.12 on Intel Xeon Gold 6130. Each node had 8GB RAM and 24GB storage. The systems ran under the hv\_netvsc hypervisor network driver, with 100 Gbits/sec network bandwidth and 8 TX/RX hardware queues aligned to CPU cores to enable optimal packet steering and parallel processing for high-throughput netflow handling. In addition, all 8 CPU cores, memory existed in smae inside single NUMA resulting in no memory lookup overhead while benchmarking kernel code. The test bench launches a custom PowerDNS authoritative and recursor server on CSSVLAB08. The controller and a Kafka single broker instance run on CSSVLAB01. Nodes CSSVLAB{02–07}, excluding CSSVLAB06, act as the data plane, each running the eBPF agent and using the custom PowerDNS server as the default resolver via systemd-resolved. CSSVLAB06 is used to simulate DNS exfiltration attacks against data plane nodes, tunneling DNS queries through the same PowerDNS instance. The full deployment is illustrated in \hyperref[sec:deployed-arch]{Figure 5.1}.
 
 
 \begin{figure}[h]
@@ -1351,60 +1356,76 @@ The evaluation of this security framework is presented for each individual compo
 The effectiveness of the eBPF agent at the endpoint of the data plane is evaluated through quantized deep learning metrics, comparison of DNS request throughput in both operational phases (active and passive), and measurement of bandwidth and resource utilization, including CPU and memory usage, as well as throughput of kernel events processing. Finally, the agent’s resilience coverage against advanced adversary emulation frameworks is explained. Performance evaluation is performed on a single selected node within the data plane running the agent.
 
 \subsubsection{Deep Learning Model Evaluation}
-The evaluation of the trained deep learning model was performed on a 6 million domain data set, divided into 70\% for training and 15\% for validation and testing. After training, the model achieved a validation precision of 99.7\%, with loss steadily decreasing per epoch and reaching 0.98\% at the end of the training. Given the DNS data exfiltration use case, the model performance was evaluated primarily with an emphasis on minimizing false positives. High false positives would not only result in the eBPF agent dropping benign DNS packets and generating false threat events, but could also terminate legitimate processes introducing operational risks. In contrast, false negatives were considered less critical, as the agent would allow limited malicious traffic to pass through without taking privilege-level actions. Therefore, precision (TP / [TP + FP]) was prioritized over recall (TP / [TP + FN]). Based on these considerations and a dataset engineered to include a wide range of data obfuscation techniques, the model achieved a high precision of 99. 79\% and a recall of 99. 76\%. For runtime inference through ONNX within the eBPF agent, a decision threshold of 0.98 was selected, as the model demonstrated near-perfect classification (AUC = 1). This performance was largely due to the selected feature set, including Shannon entropy on various encoding and encryption schemes, which enabled effective learning. \hyperref[model-evaluation-metrics]{Figure 5.1} illustrates the performance of the model in both the training and validation datasets, while \hyperref[fig:model_metrics_quadrant]{Figure 5.3} highlights improved performance over 25 training epochs.
+The evaluation of the trained deep learning model was performed on a 6 million domain data set, divided into 70\% for training and 15\% for validation and testing. After training, the model achieved a validation precision of 99.7\%, with loss steadily decreasing per epoch and reaching 0.98\% at the end of the training. Given the DNS data exfiltration use case, the model performance was evaluated primarily with an emphasis on minimizing false positives. High false positives would not only result in the eBPF agent dropping benign DNS packets and generating false threat events, but could also terminate legitimate processes introducing operational risks. In contrast, false negatives were considered less critical, as the agent would allow limited malicious traffic to pass through without taking privilege-level actions. Therefore, \textbf{precision} was prioritized over recall. Specifically, precision and recall defined as:
+\[
+\text{Precision} = \frac{\text{TP}}{\text{TP} + \text{FP}},
+\]
+% while recall is defined as:
+\[
+\text{Recall} = \frac{\text{TP}}{\text{TP} + \text{FN}}.
+\]
+. Based on these considerations and a dataset engineered to include a wide range of data obfuscation techniques, the model achieved a high precision of 99.59\% and a recall of 99.87\%. For runtime inference using ONNX within the eBPF agent, a binary classification threshold of 0.85 was selected based on F1 score performance across varying thresholds, along with the corresponding changes in precision and recall. Since reducing false positives was a top priority, a threshold that maximized precision while still maintaining a high F1 score was chosen. This high-precision, low-false-positive outcome was largely enabled by the selected feature set, which included Shannon entropy applied to various encoding and encryption schemes, allowing the model to learn effectively. \hyperref[model-evaluation-metrics]{Figure 5.1} shows the model’s performance on both the training and validation datasets, while \hyperref[fig:model_metrics_quadrant]{Figure 5.3} demonstrates performance improvements over 25 training epochs.
 
-\begin{table}[H]
+% 82/82 ━━━━━━━━━━━━━━━━━━━━ 292s 2s/step - ac: 0.9973 - auc: 0.9997 - fn: 831.1627 - fp: 2741.8162 - loss: 0.0099 - precision: 0.9959 - recall: 0.9987 - tn: 663969.7500 - tp: 664216.3125 - val_ac: 0.9974 - val_auc: 0.9997 - val_fn: 314.0000 - val_fp: 1102.0000 - val_loss: 0.0091 - val_precision: 0.9959 - val_recall: 0.9988 - val_tn: 271721.0000 - val_tp: 270863.0000
+% Epoch 25/25
+\begin{figure}[H]
+\begin{minipage}[b]{0.48\textwidth}
 \centering
 \begin{tabular}{lcc}
 \hline
 \textbf{Metric} & \textbf{Training} & \textbf{Validation} \\
 \hline
-Accuracy & 0.9979 & 0.9978 \\
+Accuracy & 0.9973 & 0.9997 \\
 AUC & 0.9997 & 0.9997 \\
-Loss & 0.0094 & 0.0089 \\
-Precision & 0.9979 & 0.9979 \\
-Recall & 0.9979 & 0.9976 \\
-% True Positives & 214359.75 & 88966 \\
-% True Negatives & 225677.89 & 94631 \\
-% False Positives & 440.77 & 188 \\
-% False Negatives & 476.13 & 215 \\
+Loss & 0.0099 & 0.0091 \\
+Precision & 0.9959 & 0.9959 \\
+Recall & 0.9987 & 0.9988 \\
 \hline
 \end{tabular}
-\caption{Model Evaluation Metrics}
-\label{model-evaluation-metrics}
-\end{table}
+\captionof{table}{Model Evaluation Metrics}
+\label{tab:model-evaluation-metrics}
+\end{minipage}
+\hfill
+\begin{minipage}[b]{0.48\textwidth}
+\centering
+\includegraphics[width=\textwidth]{UWThesis/images/results/model/confusion_matrix.png}
+\caption{Confusion Matrix}
+\label{fig:threshold-vs-metrics}
+\end{minipage}
+\end{figure}
 
 \begin{figure}[H]
   \centering
-  \begin{subfigure}[b]{0.48\textwidth}
+  \begin{minipage}{0.48\textwidth}
+    \centering
     \includegraphics[width=\textwidth]{UWThesis/images/results/model/macc.png}
     \caption{Model Accuracy}
-    \label{fig:image1}
-  \end{subfigure}
-  \hspace{0.02\textwidth}
-  \begin{subfigure}[b]{0.48\textwidth}
+    \label{fig:model_accuracy}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.48\textwidth}
+    \centering
     \includegraphics[width=\textwidth]{UWThesis/images/results/model/mloss.png}
     \caption{Model Loss}
-    \label{fig:image2}
-  \end{subfigure}
+    \label{fig:model_loss}
+  \end{minipage}
+\end{figure}
 
-  \vspace{0.3cm}
-
-  \begin{subfigure}[b]{0.48\textwidth}
+\begin{figure}[h]
+  \centering
+  \begin{minipage}{0.48\textwidth}
+    \centering
     \includegraphics[width=\textwidth]{UWThesis/images/results/model/mpred.png}
     \caption{Model Precision}
-    \label{fig:image3}
-  \end{subfigure}
-  \hspace{0.02\textwidth}
-  \begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{UWThesis/images/results/model/roc.png}
-    \caption{ROC Curve}
-    \label{fig:image4}
-  \end{subfigure}
-
-  \caption{Model performance metrics: accuracy, loss, precision, and ROC curve}
-  % \caption{Model performance across different training epochs}
-  \label{fig:model_metrics_quadrant}
+    \label{fig:model_precision}
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{UWThesis/images/results/model/f1_score.png}
+    \caption{Precision, Recall, and F1 Score vs. Threshold}
+    \label{fig:model_f1_threshold}
+  \end{minipage}
 \end{figure}
 
 
@@ -1451,7 +1472,7 @@ The primary evaluation metric in passive mode is the volume of DNS-based data ex
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.6\textwidth]{UWThesis/images/results/data_loss_passive/exfil_stopped_passive_data_prevented_and_kill.png}
-\caption{eBPF Agent blocking passive DNS exfiltration before SIGKILL}
+\caption{eBPF Agent blocking port obfuscated tunnelled DNS exfiltration before SIGKILL}
   \label{fig:data_loss_prev}
 \end{figure}
 
@@ -1591,9 +1612,8 @@ This chapter concludes the whole paper by summarizing the contents and  future d
 
 \section{Summary}
 This security framework significantly advances the state-of-the-art by developing a novel architecture to prevent data exfiltration over DNS, directly addressing the critical gaps left by traditional approaches. The existing literature and solutions for DNS exfiltration prevention remain largely stagnant, centered on centralized detection and userspace anomaly detection systems or proxy DPI, which are inherently inadequate and lack the strength to stop sophisticated DNS-based exfiltration, especially those leveraging C2 implants or APT malware once the system is compromised. In contrast, this framework introduces a new paradigm: kernel-enforced endpoint security. It acts as a privileged layer beneath existing endpoint security solutions, enabling strict enforcement in conjunction with eBPF agents. With security code running inside the kernel, these endpoint agents provide unprecedented defensive strength, stopping and killing the most advanced DNS C2 implants, and real-time threats such as remote code execution, shellcode, port forwarding, reverse tunnels, and SOCKS tunnels. These techniques are commonly used by top-tier adversary emulation tools actively deployed by red teams in production environments.
-Furthermore, by combining a layered approach to system security first with an endpoint-centric design, this architecture elevates endpoint defense beyond the limitations of userspace alone. It delivers deeply integrated, system-level protection with unprecedented visibility into OS activity, enabling intelligent threat hunting and real-time prevention of advanced exfiltration and C2 techniques. This research and implementation has been recognized by the primer Linux kernel community, kernel maintainers for innovations having being presented at the most selective and prestigious kernel networking and security conferences. In addition, this work is scheduled to be presented at leading kernel security conferences, showcasing innovations that advance DNS security to prevent data exfiltration and C2 activity, with a focus on mitigating emerging attack vectors that exploit DNS. The following points summarize the strengths of the security framework.
+Furthermore, by combining a layered approach to system security first with an endpoint-centric design, this architecture elevates endpoint defense beyond the limitations of userspace alone. It delivers deeply integrated, system-level protection with unprecedented visibility into OS activity, enabling intelligent threat hunting and real-time prevention of advanced exfiltration and C2 techniques. This research and implementation has been recognized by the premier Linux kernel community, core kernel maintainers, security researchers for innovations that have been presented at the most selective and prestigious kernel networking and security conferences, security briefings. In addition, this work is scheduled to be presented at leading kernel security conferences, showcasing innovations that advance DNS security to prevent data exfiltration and C2 activity, with a focus on mitigating emerging attack vectors that exploit DNS. The following points summarize the strengths of the security framework.
 
-\vspace{-8pt}
 \begin{itemize}[nosep]
     \item \textbf{Instant DNS C2 Disruption} – Immediately blocks DNS-based command-and-control channels upon initiation, stopping covert communication at the source.
 
@@ -1603,23 +1623,23 @@ Furthermore, by combining a layered approach to system security first with an en
 
     \item \textbf{Prevents Sophisticated C2 over DNS} – Effectively stops advanced C2 command attacks - including, but not limited to, remote code execution, reverse tunnels, protocol tunneling, port forwarding, remote file compromise, shellcode injection, and remote process side channeling.
 
-    \item \textbf{DGA Mitigation with dynamic L3 kernel Network Policies} – Dynamically blacklists  domains, reprogram agents in data plane and enforces layer 3 network policies for cross-protocol coordination.
+    \item \textbf{DGA Mitigation with dynamic L3 kernel Network Policies} – Dynamically blacklists  domains, reprogram agents in data plane, and enforces layer 3 network policies for cross-protocol coordination.
 
     \item \textbf{Rich metrics and system observability} – Exports rich metrics to Prometheus, enabling visibility across scaled data planes and providing robust system-level observability at each endpoint.
 
-    \item \textbf{Horizontal Scalability} – Designed with focus on horizontal scalability as in production cloud environments 
+    \item \textbf{Horizontal Scalability} – Supports horizontal scalability as in production cloud environments 
 
     % \item \textbf{Kernel-Level Endpoint Attribution} – Provides fine-grained OS and process-level insight, attributing DNS exfiltration attempts to specific binaries and users.
 \end{itemize}
 
-\section{Limitations and Future Work}
+\section*{Limitations and Future Work}
 
 \subsection*{Limitations}
 
-\begin{itemize}[itemsep=1pt,parsep=0pt]
+\begin{itemize}[nosep]
   % \item \textbf{Limited Protocol Coverage:} Current implementation focuses primarily on DNS exfiltration; while not on DNS-over-HTTP, DoT (DNS-over-TLS), and encrypted channels require additional enforcement mechanisms.
 
-  \item \textbf{High Latency for deep learning model inferencing:} UNIX socket IPC, and Python limitation for pure concurrency significantly reduced throughput and increased latency. 
+\item \textbf{High Accuracy and Latency in Deep Learning Model Training and Inference:} Although the model achieved high precision with fewer false positives, its performance can still be improved by incorporating more complex poisoned dataset samples to address emerging obfuscation techniques. However, during inference, the use of UNIX socket-based IPC, combined with Python’s limitations in true concurrency, significantly reduced throughput and increased latency.
   % \item \textbf{Partial DNS Parsing:} The DNS parser implemented in kernel currently covers only key sections of the protocol. Further parsing of DNS message structure (e.g., full RR parsing, EDNS, DNSSEC) is pending.
 
   \item \textbf{Absence of Encrypted Exfiltration Prevention:} The framework does not support the prevention of exfiltration through encrypted DNS channels such as DoT or DoH.
@@ -1636,7 +1656,7 @@ Furthermore, by combining a layered approach to system security first with an en
 
   \item \textbf{Migration away from Python inference server:} Migrate the Python ONNX inference to Rust, with a wasm (web assembly) module for faster inferencing compared to interpreted languages.
 
-  \item \textbf{Add In-Kernel TLS Fingerprinting:} Integrate TLS fingerprinting (e.g., JA3 / JA4) using eBPF to prevent encrypted DNS exfiltration over TLS channels or via encrypted tunnels via wireguard.
+  \item \textbf{Add In-Kernel TLS Fingerprinting:} Integrate TLS fingerprinting (e.g., JA3/JA4) using eBPF to detect encrypted DNS exfiltration over TLS or WireGuard tunnels, supporting userspace deep learning models with detailed system-level metrics for dynamic security policy enforcement by kernel eBPF programs.
 
   % \item \textbf{Enhance DNS Protocol Parsing:} Expand in-kernel DNS parser to cover full protocol depth, including additional sections and response types.
 
@@ -1644,7 +1664,7 @@ Furthermore, by combining a layered approach to system security first with an en
 
   % \item \textbf{XDP-Based Flood Prevention:} Introduce XDP ingress filtering inside kernel to mitigate NXDOMAIN-based DNS water torture and DNS amplification attacks on the endpoint.
 
-  \item \textbf{Rate-Limiting Based on Volume and Throughput:} Integrate egress \texttt{TC CLSACT QDISC}-based dynamic rate limiting via token bucket algorithm implementation through kernel BPF timers preventing high-throughput DNS data breaches inside kernel.
+  \item \textbf{Rate-Limiting Based on Volume and Throughput:} Integrate egress CSLACT-based dynamic rate limiting for DNS mass data breaches integrating EDT\_BPF and HTB QDISC's.
 
   % \item \textbf{Layered Cloud and Kubernetes Defense:} Deploy policy enforcement layers across Kubernetes orchestrated environments (L3/L7 filtering via CNI to drop in userspace) and public cloud cross protocol access control list defending all nodes behind firewall.
 
@@ -1668,7 +1688,7 @@ The complete security framework, along with all supporting configuration files, 
 This section focuses on providing additional details of the eBPF agents in the data plane.
 
 \subsection{DNS parsing inside kernel by eBPF  program}
-\hyperref[fig:c1]{Figure 7.1} illustrates additional internal implementation details, specifically the raw parsing of DNS questions inside the SKB kernel using custom DNS protocol header structures defined within the eBPF TC kernel programs, as shown in \hyperref[fig:c2]{Figure 7.2}. Considering the intensive parsing and enforcement performed by the kernel traffic control (TC) layer to classify DNS application payloads, an industry first compared to existing research and enterprise solutions. Advanced benchmarking was conducted to measure the impact of the internal kernel. The eBPF program was executed in parallel across different CPU cores, monitored using Netflix’s bpftop tool. Under a high-throughput benchmark of approximately 100,000 DNS requests per second, the CPU usage of the kernel eBPF program peaked at 4\% across 8 cores, with a minimum of 2\%. The program sustained processing of up to 17,063 events per second, excluding hardware interrupts and soft IRQ overhead, demonstrating the efficiency of kernel-resident eBPF logic within TC. \hyperref[fig:c3]{Figure 7.3} illustrates the kernel eBPF profiling results. In addition to profiling kernel program usage and event processing throughput, the eBPF agent - critical for traffic handling - was profiled using the Go \texttt{pprof} tool. The analysis focused on function call stacks, particularly those that consume the most CPU cycles within the eBPF agent process of the user space. As expected, due to the agent’s heavy reliance on \texttt{libbpf} bindings, approximately 75\% of the total CPU usage was attributed to BPF-related syscalls. This reflects the agent’s dependence on frequent kernel interactions to access and manipulate eBPF program internals. \hyperref[fig:c4]{Figure 7.4} presents the corresponding agent flame graph. 
+\hyperref[fig:c1]{Figure 7.1} illustrates additional internal implementation details, specifically the raw parsing of DNS questions inside the SKB kernel using custom DNS protocol header structures defined within the eBPF TC kernel programs, as shown in \hyperref[fig:c2]{Figure 7.2}. Considering the intensive parsing and enforcement performed by the kernel traffic control (TC) layer to classify DNS application payloads, an industry first compared to existing research and enterprise solutions. Advanced benchmarking was conducted to measure the impact of the internal kernel. The eBPF program was executed in parallel across different CPU cores, monitored using Netflix’s bpftop tool. Under a high-throughput benchmark of approximately 100,000 DNS requests per second, the CPU usage of the kernel eBPF program peaked at 4\% across 8 cores, with a minimum of 2\%. The program sustained processing of up to 17,063 events per second, excluding hardware interrupts and soft IRQ overhead, demonstrating the efficiency of kernel-resident eBPF logic within TC. \hyperref[fig:c3]{Figure 7.3} illustrates the kernel eBPF profiling results. In addition to profiling kernel program usage and event processing throughput, the eBPF agent - critical for traffic handling - was profiled using the Go \texttt{pprof} tool. The analysis focused on function call stacks, particularly those that consume the most CPU cycles within the eBPF agent process of the user space. As expected, due to the agent’s heavy reliance on \texttt{libbpf} bindings, approximately 75\% of the total CPU usage was attributed to BPF-related syscalls. This reflects the agent’s dependence on frequent kernel interactions to access and manipulate eBPF program internals especially majority being syscalls to manipulate or read from eBPF maps. \hyperref[fig:c4]{Figure 7.4} presents the corresponding agent flame graph. 
 
 \begin{figure}
     \centering
@@ -1837,7 +1857,7 @@ Fetch \texttt{skb\_mark\_integrity\_mark} from \texttt{skb\_netflow\_integrity\_
 
 % Step 2
 \If{\texttt{skb\_mark\_integrity\_mark} $\neq$ \texttt{skb->mark}}{
-    \tcp{This is a tampered redirected packet and did not originate from the main TC egress program}
+    \tcp{This is a tampered redirected packet, or sniffed packet and did not originate from the main TC egress program}
     \Return \texttt{TC\_ACT\_SHOT}\;
 }
 
@@ -2049,7 +2069,7 @@ sudo ruby dnscat2.rb --dns 'host=<attacker_node>,port=<dns_overlay_udp_port>,dom
 
 \subsubsection{Iodine}
 Iodine documentation for building the Iodine tunnel server server and client can be found on official documentation page at \href{https://github.com/yarrick/iodine}{Github}
-\begin{lstlisting}[language=bash,caption={Steps to use Iodine for Dns tunnelling using kernel encapsulation ppp TUN/TAP links},label={lst:iodine-steps}]
+\begin{lstlisting}[language=bash,caption={Steps to use Iodine for Dns tunnelling using kernel encapsulation POINTTOPOINT TUN/TAP links},label={lst:iodine-steps}]
 # 1. Start iodine tunneling server 
 sudo iodined -f -P <password> <TUN/TAP_overlay_CIDR> <tunnel_domain>
 # 2. Verify the required TUN/TAP pointtopoint netdev link created, defaults to dns0 
