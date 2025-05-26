@@ -1414,7 +1414,7 @@ The primary evaluation metric in passive mode is the volume of DNS-based data ex
 
 
 \subsubsection{eBPF agent Resource Usage}
-The performance of the eBPF agent was closely monitored while running at the endpoint in the data plane, and the utilization of resources was measured in terms of memory and CPU utilization. During a 10-second DNSPerf benchmark at 10,000 DNS req/sec, with the agent in active mode redirecting all packets to userspace, the agent consumed approximately 310 MB of memory for the main process. This includes heap memory, as all LRU maps loaded by agent's process for fast lookups. At a higher throughput of 100,000 DNS requests/sec, memory usage remained nearly the same, peaking at 350 MB. \hyperref[fig:mem10k]{Figure 5.10},  \hyperref[fig:mem100k]{Figure 5.11} illustrates the memory usage for the previously explained DNS request throughput. Throughout the benchmark, the agent process consistently consumed only 8–10\% CPU at peak load and remained below 2\% when the system was idle. Memory usage during idle conditions stabilized around 120 MB. These results demonstrate that the agent is highly lightweight, with minimal CPU and memory footprints and no observable impact on other processes running on the endpoint. Considering that the CPU usage for the injected eBPF programs in the kernel peaked at 1.2\% at peak load, while for the idle system it remained below 0.2\%. In addition, the agent binary compiled size with all the explained features is around 22 MB on ARM and 24 MB on x86\_64 architectures, ensuring there is minimal storage impact on the endpoint caused by the eBPF agent.
+The performance of the eBPF agent was closely monitored while running at the endpoint in the data plane, and the utilization of resources was measured in terms of memory and CPU utilization. During a 10-second DNSPerf benchmark at 10,000 DNS req/sec, with the agent in active mode redirecting all packets to userspace, the agent consumed approximately 310 MB of memory for the main process. This includes heap memory, as all LRU maps loaded by agent's process for fast lookups. At a higher throughput of 100,000 DNS requests/sec, memory usage remained nearly the same, peaking at 350 MB. \hyperref[fig:mem10k]{Figure 5.10},  \hyperref[fig:mem100k]{Figure 5.11} illustrates the memory usage for the previously explained DNS request throughput. Throughout the benchmark, the agent process consistently consumed only 8–10\% CPU at peak load and remained below 2\% when the system was idle. Memory usage during idle conditions stabilized around 120 MB. These results demonstrate that the agent is highly lightweight, with minimal CPU and memory footprints and no observable impact on other processes running on the endpoint. Considering that the CPU usage for the injected eBPF programs in the kernel peaked at 1.2\% at peak load, while for the idle system it remained below 0.2\%. In addition, the agent binary compiled size with all the explained features is around 22 MB on ARM and 24 MB on x86\_64 architectures, ensuring there is minimal storage impact on the endpoint caused by the eBPF agent. \footnote{Appendix A describes advanced profiling of eBPF agent through flame graph.}
 
 \begin{figure}[H]
   \centering
@@ -1605,17 +1605,17 @@ Furthermore, by combining a layered approach with system security embedded with 
 
 This chapter outlines additional security mechanisms designed to protect the Linux kernel from malicious eBPF programs, as well as enhanced observability features employed by the eBPF agents in the data plane. It also describes the DGA used to simulate the generation of large-scale malicious domains for DNS exfiltration attack testing.
 The complete security framework codebase—including all configuration files and documentation—is publicly available at \href{https://github.com/Synarcs/DNSObelisk}{GitHub}. It is currently licensed under AGPLv3 license.
-The repository contains all components of the system, covering both kernel and userspace implementations of the eBPF agents in the data and control planes. It also provides Docker deployment manifests for setting up Kafka brokers and scripts to deploy PowerDNS. These scripts configure all nodes on a distributed testbed to use PowerDNS as their default resolver. Alternatively, the entire infrastructure—including PowerDNS and Kafka—can be deployed on any cloud provider, depending on operational requirements.
+The repository contains all components of the system, covering both kernel and userspace implementations of the eBPF agents in the data and controller servers in control planes. It also provides Docker deployment manifests for setting up Kafka brokers and scripts to deploy PowerDNS. These scripts configure all nodes on a distributed testbed to use PowerDNS as their default resolver. Alternatively, the entire infrastructure—including PowerDNS and Kafka—can be deployed on any cloud provider, depending on operational requirements.
 Detailed setup instructions for each component of the security framework are provided in the accompanying docs directory.
 
 \section{Appendix A}
-This section focuses on providing additional security details implemented within the kernel to protect the kernel from malicious eBPF agents in the data plane.
+This section focuses on providing additional security details implemented within the kernel to protect the kernel from malicious eBPF agents and system profiling of agents in data plane.
 
 \subsection{Kernel eBPF programs and userspace agent profiling}
 % \hyperref[fig:c1]{Figure 7.1} illustrates additional internal implementation details, specifically the raw parsing of DNS questions from SKB through eBPF over kernel TC, using custom DNS protocol header structures defined within the eBPF TC kernel programs, as shown in \hyperref[fig:c2]{Figure 7.2}.
 Given the intensive DNS parsing and enforcement logic implemented in the kernel TC layer, a comprehensive benchmarking was performed to evaluate its impact on the performance of benign traffic. The documented source code can be found in the kernel/ directory, which includes logic to classify DNS payloads at line rate. Performance evaluation leveraged in-kernel perf instrumentation and system profiling tools.
 The eBPF program was executed concurrently across multiple CPU cores and was monitored using Netflix’s bpftop tool. Under a high-throughput workload of approximately 100,000 DNS requests per second, kernel CPU usage peaked at 4\% across eight cores, with a minimum of 2\%. The program consistently maintained processing rates of up to 17,063 events per second - excluding hardware interrupt and soft IRQ overhead - demonstrating the efficiency of the eBPF logic attached to the TC kernel. \hyperref[fig:c3]{Figure 7.2} illustrates the profiling results.
-In addition to kernel profiling, the eBPF userspace agent responsible for traffic handling was profiled using Go's pprof tool. Analysis of CPU-intensive function call stacks revealed that approximately 75\% of the agent’s CPU usage is spent on BPF-related syscalls, reflecting its reliance on frequent kernel interactions to access and update the internals of the eBPF program, particularly eBPF maps. \hyperref[fig:c4]{Figure 7.1} presents the agent’s flame graph.
+In addition to kernel-level profiling, the eBPF userspace agent responsible for traffic handling was analyzed using Go’s pprof profiler. CPU flame graph analysis revealed that approximately 25\% of the agent’s runtime was spent on BPF-related syscalls, primarily for monitoring and interacting with kernel-managed eBPF maps and ring buffers. These operations are performed using asynchronous I/O via epoll, significantly reducing the overhead compared to busy polling for metrics from userspace. This distribution reflects the agent’s dependency on frequent kernel interactions for accessing and updating eBPF map state. \hyperref[fig:c4]{Figure 7.1} illustrates the resulting flame graph.
 
 % \begin{figure}
 %     \centering
@@ -1636,7 +1636,7 @@ In addition to kernel profiling, the eBPF userspace agent responsible for traffi
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{UWThesis/images/results/pprof/cpu_flame_graph.png}
+    \includegraphics[width=\linewidth,  height=13.5em]{UWThesis/images/results/pprof/cpu_flame_graph.png}
     \caption{eBPF Agent: Flame Graph}
     \label{fig:c4}
 \end{figure}
@@ -1649,7 +1649,6 @@ In addition to kernel profiling, the eBPF userspace agent responsible for traffi
 \end{figure}
 
 
-\vspace{-25pt}
 \subsection{eBPF Agent exported metrics}
 \hyperref[sec:dp_ebpf_node_metrics]{Table 7.1} describes all the metrics exported by each eBPF agent at the endpoint in data plane, with \hyperref[fig:dns-exfil-packet-metrics]{Figure 7.6}, \hyperref[fig:p1]{Figure 7.3}, \hyperref[fig:p2]{Figure 7.4}  detailing some of the enhanced system-level metrics exported by the eBPF agent to Prometheus from the eBPF map and ring buffers to Grafana, a visualization tool to scrape Prometheus metrics.
 
@@ -1758,10 +1757,10 @@ BPF_PROG(bpf, int cmd, union bpf_attr *attr, unsigned int size) {
 
 \subsection{Protecting SKB Netflow introspection and eavesdropping}
 In active mode, the agent enforces advanced security directly in the kernel using a TC-attached eBPF program bound to the veth bridge that manages all network namespaces created by the agent. To prevent malicious processes from analyzing live traffic redirection patterns, an additional eBPF map, \texttt{skb\_netflow\_integrity\_verify\_map}, is used as explained in \hyperref[sec:alg2]{Algorithm 2}. The core eBPF program assigns a unique SKB mark to each redirected netflow packet, enabling integrity verification at the receiving bridge interface. This bridge, monitored by the eBPF agent in userspace, receives the redirected traffic for further analysis of suspicious behavior.
-An additional ingress TC eBPF program is attached to the bridge interface. Inspect incoming SKBs to verify that the expected SKB mark is present, confirming that the packet was redirected from the core TC program on a physical netdev and not injected from any untrusted source. This enhanced security design ensures strong SKB integrity and prevents malicious sniffing or brute-force inference of live redirection patterns, effectively enforcing traffic validation across both kernel and userspace components. \hyperref[sec:alg8]{Algorithm 8} explains the algorithm integrity verification check on the SKB attached to the TC ingress on the bridge.
+An additional ingress TC eBPF program is attached to the bridge interface. Inspect incoming SKBs to verify that the expected SKB mark is present, confirming that the packet was redirected from the core TC program on a physical netdev and not injected from any untrusted source. This enhanced security design ensures strong SKB integrity and prevents malicious sniffing or brute-force inference of live redirection patterns, effectively enforcing traffic validation across both kernel and userspace components. \hyperref[sec:alg7]{Algorithm 7} explains the algorithm integrity verification check on the SKB attached to the TC ingress on the bridge.
 
 \begin{algorithm}[H]
-\label{sec:alg8}
+\label{sec:alg7}
 \caption{SKB Integrity Verification and Secure Redirection in \textbf{Active} Mode}
 \label{sec:alg_active_mode_integrity}
 \SetKwInOut{Input}{Input}
@@ -1910,12 +1909,12 @@ This section provides additional internal details about Lua interceptor to filte
 
 
 \subsection{PowerDNS TCP Lua interceptor}
-\hyperref[sec:alg7]{Algorithm 7} details the algorithm implemented in PowerDNS Recrusor as an interceptor.
+\hyperref[sec:alg8]{Algorithm 8} details the algorithm implemented in PowerDNS Recrusor as an interceptor.
 
 % alg 7
 \begin{algorithm}[H]
 \caption{PowerDNS Malicious DNS over TCP filtering Query Interceptor}
-\label{sec:alg7}
+\label{sec:alg8}
 $qname \gets dq.qname.toString()$\;
 
 \small % Reduce font size for the entire algorithm
