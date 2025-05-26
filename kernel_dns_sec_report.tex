@@ -1605,11 +1605,11 @@ Furthermore, by combining a layered approach with system security embedded with 
 
 This chapter outlines additional security mechanisms designed to protect the Linux kernel from malicious eBPF programs, as well as enhanced observability features employed by the eBPF agents in the data plane. It also describes the DGA used to simulate the generation of large-scale malicious domains for DNS exfiltration attack testing.
 The complete security framework codebase—including all configuration files and documentation—is publicly available at \href{https://github.com/Synarcs/DNSObelisk}{GitHub}. It is currently licensed under AGPLv3 license.
-The repository contains all components of the system, covering both kernel and userspace implementations of the eBPF agents in the data and control planes. It also provides Docker deployment manifests for setting up Kafka brokers and scripts to deploy PowerDNS. These scripts configure all nodes on a distributed testbed to use PowerDNS as their default resolver. Alternatively, the entire infrastructure—including PowerDNS and Kafka—can be deployed on any cloud provider, depending on operational requirements.
+The repository contains all components of the system, covering both kernel and userspace implementations of the eBPF agents in the data and controller servers in control planes. It also provides Docker deployment manifests for setting up Kafka brokers and scripts to deploy PowerDNS. These scripts configure all nodes on a distributed testbed to use PowerDNS as their default resolver. Alternatively, the entire infrastructure—including PowerDNS and Kafka—can be deployed on any cloud provider, depending on operational requirements.
 Detailed setup instructions for each component of the security framework are provided in the accompanying docs directory.
 
 \section{Appendix A}
-This section focuses on providing additional security details implemented within the kernel to protect the kernel from malicious eBPF agents in the data plane.
+This section focuses on providing additional security details implemented within the kernel to protect the kernel from malicious eBPF agents and system profiling of agents in data plane.
 
 \subsection{Kernel eBPF programs and userspace agent profiling}
 % \hyperref[fig:c1]{Figure 7.1} illustrates additional internal implementation details, specifically the raw parsing of DNS questions from SKB through eBPF over kernel TC, using custom DNS protocol header structures defined within the eBPF TC kernel programs, as shown in \hyperref[fig:c2]{Figure 7.2}.
@@ -1758,10 +1758,10 @@ BPF_PROG(bpf, int cmd, union bpf_attr *attr, unsigned int size) {
 
 \subsection{Protecting SKB Netflow introspection and eavesdropping}
 In active mode, the agent enforces advanced security directly in the kernel using a TC-attached eBPF program bound to the veth bridge that manages all network namespaces created by the agent. To prevent malicious processes from analyzing live traffic redirection patterns, an additional eBPF map, \texttt{skb\_netflow\_integrity\_verify\_map}, is used as explained in \hyperref[sec:alg2]{Algorithm 2}. The core eBPF program assigns a unique SKB mark to each redirected netflow packet, enabling integrity verification at the receiving bridge interface. This bridge, monitored by the eBPF agent in userspace, receives the redirected traffic for further analysis of suspicious behavior.
-An additional ingress TC eBPF program is attached to the bridge interface. Inspect incoming SKBs to verify that the expected SKB mark is present, confirming that the packet was redirected from the core TC program on a physical netdev and not injected from any untrusted source. This enhanced security design ensures strong SKB integrity and prevents malicious sniffing or brute-force inference of live redirection patterns, effectively enforcing traffic validation across both kernel and userspace components. \hyperref[sec:alg8]{Algorithm 8} explains the algorithm integrity verification check on the SKB attached to the TC ingress on the bridge.
+An additional ingress TC eBPF program is attached to the bridge interface. Inspect incoming SKBs to verify that the expected SKB mark is present, confirming that the packet was redirected from the core TC program on a physical netdev and not injected from any untrusted source. This enhanced security design ensures strong SKB integrity and prevents malicious sniffing or brute-force inference of live redirection patterns, effectively enforcing traffic validation across both kernel and userspace components. \hyperref[sec:alg7]{Algorithm 7} explains the algorithm integrity verification check on the SKB attached to the TC ingress on the bridge.
 
 \begin{algorithm}[H]
-\label{sec:alg8}
+\label{sec:alg7}
 \caption{SKB Integrity Verification and Secure Redirection in \textbf{Active} Mode}
 \label{sec:alg_active_mode_integrity}
 \SetKwInOut{Input}{Input}
@@ -1910,12 +1910,12 @@ This section provides additional internal details about Lua interceptor to filte
 
 
 \subsection{PowerDNS TCP Lua interceptor}
-\hyperref[sec:alg7]{Algorithm 7} details the algorithm implemented in PowerDNS Recrusor as an interceptor.
+\hyperref[sec:alg8]{Algorithm 8} details the algorithm implemented in PowerDNS Recrusor as an interceptor.
 
 % alg 7
 \begin{algorithm}[H]
 \caption{PowerDNS Malicious DNS over TCP filtering Query Interceptor}
-\label{sec:alg7}
+\label{sec:alg8}
 $qname \gets dq.qname.toString()$\;
 
 \small % Reduce font size for the entire algorithm
