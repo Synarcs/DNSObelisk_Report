@@ -1,21 +1,6 @@
-This is source and documentation for the latex thesis package
-at the University of Washington, Seattle, WA, USA. 
+## DNSObelisk: Kernel Enforced Endpoint Security Distributed Environments Framework WhitePaper
 
-The tex file is both a thesis template and the documentation,
-
-| file | content |
-| ----- | -------- |
-| uwthesis.cls	| The class file
-| uwthesis.tex	| Documentation and example thesis
-| uwthesis.bib	| Bibliography for the documentation
-| uwthesis.pdf	| Preformatted uwthesis document
-
-
-All files are distributed under the Apache 2.0 license.
-
-Jim Fox
-
-help@uw.edu
-
-
-
+* This repository contains comprehensive documentation for the complete Security framework.
+* This research and implementation is neither sponsored from Univeristy of Washington nor affiliated to any university graduate research group.
+* This implementation and architecture is completely done by me as an independent research student from University of Washington without any academic guidance for capstone.
+* The core framework codebase is licensed under AGPLv3, although the framework is open for collaboration and enhancements the corresponding architecture, algorithms, and core implementations explained in the report are subject to copyright under the ownership of the original author.
