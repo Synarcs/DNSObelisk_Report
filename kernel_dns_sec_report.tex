@@ -70,6 +70,7 @@
 \usepackage{setspace}
 \usepackage{float}
 \usepackage{longtable}
+\usepackage{booktabs}
 \usepackage{caption} 
 \usepackage{array}
 \usepackage{graphicx}
@@ -85,7 +86,7 @@
 \usepackage{titlesec}
 
 \titleformat{\section}
-  {\bfseries\large}{\thesection}{0.75em}{}
+  {\bfseries\large}{\thesection}{0.70em}{}
 
 \titleformat{\subsection}
   {\bfseries\normalsize}{\thesubsection}{0.5em}{}
@@ -465,7 +466,7 @@ On the userspace side, the agent performs low-latency inference using quantized 
 \end{figure}
 
 \subsection{Distributed Infrastructure}
-In addition to the data plane nodes, the framework includes an open-source PowerDNS setup consisting of a Recursor for upstream resolution and an authoritative server configured with a Postgres backend. Although actual internal domains are not served, the authoritative server is used to carry out DNS C2 and tunneling attacks by generating malicious domains using DGA. This design replicates the behavior of the real-world DNS server commonly deployed by enterprises.
+In addition to the data plane nodes, the framework includes an open-source PowerDNS setup consisting of a recursor for upstream resolution and an authoritative server configured with a Postgres backend. Although actual internal domains are not served, the authoritative server is used to carry out DNS C2 and tunneling attacks by generating malicious domains using DGA. This design replicates the behavior of the real-world DNS server commonly deployed by enterprises.
 All data plane nodes resolve DNS through the PowerDNS Recursor, which is equipped with interceptors that inspect queries before forwarding. These interceptors run ONNX-based deep learning inference to detect threats, specifically on TCP-based DNS traffic offloaded from eBPF agents. Kafka acts as the message broker for streaming threat events. Additionally, the recursor integrates with dynamic RPZ stored in Postgres, allowing the controller to blacklist second-level domains (SLD) linked to malicious activity, as detailed in the next section.
 
 \subsection{Control Plane}
@@ -474,11 +475,11 @@ The control plane consists of a centralized analysis server that consumes threat
 
 
 \section{Data Plane}
-The eBPF agent implementation deployed on each node in the data plane is organized into six core components. First, Section~\ref{sec:active} introduces the \textit{strict enforcement mode}, in which suspicious DNS traffic is redirected to userspace and dropped in real time if classified as malicious. Second, Section~\ref{sec:passive} presents an \emph{passive process threat-hunting strategy} that correlates DNS exfiltration with the originating malicious userspace process. Third, Section~\ref{sec:encap} addresses \emph{DNS exfiltration hidden within kernel-encapsulated traffic}, which is currently prevented only in active mode. Fourth, Section~\ref{sec:features} outlines the \emph{features extracted} in the kernel for filtering, and in userspace for deep learning--based inference. Fifth, Section~\ref{sec:dataset} details the \textit{data sources} used to train and evaluate the detection models. Finally, Sections~\ref{sec:model} and~\ref{sec:threat-event-streaming} describe \emph{model architecture}, including serialization and quantization, as well as \emph{streaming pipeline} for threat events from the agent to centralized message brokers and observability backends.
+The implementation of the eBPF agent deployed on each node in the data plane is organized into six core components. First, Section~\ref{sec:active} introduces the \textit{strict enforcement mode}, in which suspicious DNS traffic is redirected to userspace and dropped in real time if classified as malicious. Second, Section~\ref{sec:passive} presents an \emph{passive process threat-hunting strategy} that correlates DNS exfiltration with the originating malicious userspace process. Third, Section~\ref{sec:encap} addresses \emph{DNS exfiltration hidden within kernel-encapsulated traffic}, which is currently prevented only in active mode. Fourth, Section~\ref{sec:features} outlines the \emph{features extracted} in the kernel for filtering, and in userspace for deep learning--based inference. Fifth, Section~\ref{sec:dataset} details the \textit{datasets} used to train and evaluate the detection models. Finally, Sections~\ref{sec:model} and~\ref{sec:threat-event-streaming} describe \emph{model architecture}, including serialization and quantization, as well as \emph{streaming pipeline} for threat events from the agent to centralized message brokers and observability backends.
 
 \subsection{Strict Enforcement Active Mode}
 \label{sec:active}
-In this mode, eBPF programs are injected and attached as direct-action filters to the TC egress hook (CLSACT QDISC) on all physical network interfaces at the endpoint. 
+In this mode, eBPF programs are injected and attached as direct action filters to the TC egress hook (CLSACT QDISC) on all physical network interfaces at the endpoint. 
 These eBPF programs are triggered as soon as a packet is queued by the kernel to the CLSACT QDISC for the specific netdev by invoking the (\texttt{dev\_queue\_xmit}) helper in kernel network stack. At this point, the SKB is fully constructed and ready for the TX queue, having already passed through the upper layers of the networking stack. The eBPF programs run in parallel across multiple CPU cores, with all eBPF maps declared global.
 This mode implementation includes several key components. \hyperref[sec:dp_eBPF_LRU_Maps_active]{\emph{Maps}} describes the structure and purpose of the eBPF LRU hash maps (see Figure~\ref{sec:dp_eBPF_LRU_Maps_active}). These maps track the per-packet security state and current policy status, enforced by both the kernel eBPF programs and userspace eBPF agent. Next, \hyperref[active:sec1]{\emph{Kernel eBPF filter packet classification}} describes the classification of outgoing packets at the TC egress filter using SKB metadata, along with the corresponding TC actions applied to malicious and benign DNS packets. \hyperref[active:sec3]{\emph{Userspace eBPF agent packet handling}} presents the zero-copy processing of sniffed packets for efficient analysis. Finally, \hyperref[active:sec3]{\emph{Concurrency handling}} outline the safe access and update mechanisms for shared eBPF maps between eBPF programs inside kernel and user space agent threads.
 
@@ -513,7 +514,7 @@ Value: Scanned flag (true/false). Utilized by userspace eBPF agent to mark packe
 
 \subsubsection{\textbf{eBPF kernel program packet processing in \textbf{Active} mode}}
 \label{active:sec1}
-When a DNS packet is transmitted over a UDP socket, it traverses the kernel’s network stack, progressing through the TCP/IP layers (corresponding to Layers 2–4 of the OSI model). At the traffic control (TC) layer, the packet is intercepted via the CLSACT QDISC, where an eBPF program is attached as a direct-action filter. This program parses the link (L2), network (L3), and transport (L4) headers using native kernel structures to extract metadata for further analysis. Since DNS operates at the application layer and is not natively parsed by the kernel, the eBPF program manually inspects the payload beyond Layer 4. It interprets the raw SKB data using custom C structures aligned with RFC 1035, extracting fields such as the query ID, opcode, flags, and entries in the DNS question section for deep inspection. The complete inspection logic is shown in Algorithm~\ref{sec:alg1}. 
+When a DNS packet is transmitted over a UDP socket, it traverses the kernel’s network stack, progressing through the TCP/IP layers (corresponding to Layers 2–4 of the OSI model). At the traffic control (TC) layer, the packet is intercepted via the CLSACT QDISC, where an eBPF program is attached as a direct action filter. This program parses the link (L2), network (L3), and transport (L4) headers using native kernel structures to extract metadata for further analysis. Since DNS operates at the application layer and is not natively parsed by the kernel, the eBPF program manually inspects the payload beyond Layer 4. It interprets the raw SKB data using custom C structures aligned with RFC 1035, extracting fields such as the query ID, opcode, flags, and entries in the DNS question section for deep inspection. The complete inspection logic is shown in Algorithm~\ref{sec:alg1}. 
 If the query ID is new and the DNS question section is valid, the program evaluates several protocol-level features—such as multiple questions or anomalous answer counts commonly indicative of covert channels. These features are cross-checked against the kernel-defined security feature set (Table~\ref{sec:feature-kernel}). Based on the result, the program enforces one of the following actions: \texttt{TC\_ACT\_SHOT} to drop the packet, \texttt{TC\_ACT\_OK} or \texttt{TC\_ACT\_UNSPECT} to forward or delegate to upstream QDISC for further filtering, or \texttt{bpf\_redirect} to redirect the packet for deeper analysis.
 
 For suspicious packets, the DNS query ID and current monotonic kernel timestamp (\texttt{bpf\_ktime\_get\_ns}) are stored in \texttt{dns\_packet\_redirection\_map} to prevent timing and brute-force-based evasion. Before redirection, the eBPF program retrieves metadata such as the bridge’s L3 address and \texttt{if\_index} from shared maps initialized by the userspace agent. Redirection counters are updated for observability. Depending on the IP version, the program applies DNAT and recalculates checksums before redirecting the packet to a bridge interface under agent control. For IPv6, static checksum values are used. The packet is then live-redirected to the RX queue of a virtual interface sniffed by eBPF agent for further deeper inspection.
@@ -619,7 +620,7 @@ Redirect packet via \texttt{dns\_packet\_redirection\_map} to userspace\;
 
 % alg 2
 \begin{algorithm}[H]
-\caption{eBPF Map Handling in \textbf{Active} Mode of Agent}
+\caption{eBPF Map Handling within Kernel for \textbf{Active} Mode of Agent}
 \label{sec:alg2}
 \SetKwInOut{Input}{Input}
 \SetKwInOut{Output}{Output}
@@ -684,7 +685,7 @@ Fetch \texttt{dns\_kernel\_redirect\_val} from \texttt{dns\_packet\_redirection\
   }
   \Else{
     \tcc{Packet rescanned from authorized sender, clean required map entries}
-    Delete \texttt{redirect\_ts\_verify\_val} from \texttt{dns\_redirect\_ts\_verify\_map}\;
+    Delete \texttt{redirect\_ts\_verify\_val} from \texttt{dns\_redirect\_ts\_verify\_map} with key=\texttt{kernel\_time\_ns}\;
     \Return \texttt{TC\_ACT\_OK}\;
   }
 }
@@ -772,7 +773,7 @@ Fetch \texttt{isSLDBenign} from userspace LRU map of top 1M SLDs\;
 \subsection{Passive Malicious Process Threat Hunting Mode}
 \label{sec:passive}
 Passive mode reuses the same eBPF program attached to the egress CLSACT TC filter, as introduced in Section~\ref{sec:active}. This mode extends the design by layering additional security and process-aware security enforcement to prevent DNS-overlaid port obfuscation threats.
-The passive mode architecture is broken down as follows. \hyperref[sec:maps]{Maps} introduces the key eBPF structures used in this mode, their types, and their roles, as visualized in Figure~\ref{sec:dp_eBPF_LRU_Maps_passive}. \hyperref[passive:sec1]{\emph{Kernel packet processing}} details how the eBPF programs in the kernel identify and drop malicious DNS exfiltration attempts while tracking the responsible userspace processes. It also leverages kernel tracepoints attached to kernel process scheduler for efficient garbage collection of malicious process tracking. The next section, \hyperref[passive:sec2]{\emph{Userspace packet processing}}, describes how the eBPF agent parses and classifies traffic to identify potentially malicious processes involved in exfiltration. Finally, \hyperref[passive:sec3]{\emph{eBPF map concurrency}} explains how the kernel and userspace components maintain a consistent eBPF map state under concurrent CPU access.
+The passive mode architecture is broken down as follows. \hyperref[sec:maps]{\emph{Maps}} introduces the key eBPF structures used in this mode, their types, and their roles, as visualized in Figure~\ref{sec:dp_eBPF_LRU_Maps_passive}. \hyperref[passive:sec1]{\emph{Kernel packet processing}} details the eBPF programs in the kernel to identify and drop malicious DNS exfiltration attempts while tracking the responsible userspace processes. It also leverages kernel tracepoints attached to kernel process scheduler for efficient garbage collection of malicious process tracking. The next section, \hyperref[passive:sec2]{\emph{Userspace packet processing}}, describes the eBPF agent that parses and classifies traffic to identify potentially malicious processes involved in exfiltration. Finally, \hyperref[passive:sec3]{\emph{eBPF map concurrency}} explains the kernel and userspace components maintain a consistent eBPF map state under concurrent CPU access.
 
 
 
@@ -806,11 +807,11 @@ Value: Boolean flag indicating whether the process has been identified as malici
 
 \subsubsection{\textbf{eBPF kernel program packet processing in Passive mode}}
 \label{passive:sec1}
-In passive mode, the agent targets DNS exfiltration attempts over arbitrary UDP ports that may evade active mode protections. Like in active mode, the eBPF program parses packets up to Layer 4 using SKB metadata. However, it deliberately avoids redirecting all suspicious UDP packets, reducing unnecessary congestion and preserving latency for legitimate Layer 7 protocols using nonstandard ports.
+In passive mode, the agent targets DNS exfiltration attempts over arbitrary UDP ports that may evade active mode protections. Like in active mode, the eBPF program parses packets up to Layer 4 using SKB metadata. However, it deliberately avoids redirecting all suspicious UDP packets, reducing unnecessary congestion and preserving latency for legitimate Layer 7 protocols using non-standard ports.
 
-Because the kernel eBPF program cannot reliably determine whether application data over arbitrary UDP ports contains DNS, it uses \texttt{skb\_clone\_redirect} to create a full copy of packets that heuristically resemble DNS. These clones are redirected to a netdev interface managed by the eBPF agent. To minimize memory overhead, redirection is only performed if the payload structure heuristically aligns with DNS protocol fields. The eBPF program performs raw parsing within SKB bounds (skb-$>$data\_end) and validates structure against constraints defined in RFC 1035. If the payload passes these checks, clone redirection is triggered. The DNS protocol parsing as explained before from application data of other protocols in SKB is explained in Algorithm~\ref{sec:alg4}.
+Because the kernel eBPF program cannot reliably determine whether application data over arbitrary UDP ports contains DNS, it uses \texttt{skb\_clone\_redirect} to create a full copy of packets that heuristically resemble DNS. These clones are redirected to a netdev interface managed by the eBPF agent. To minimize memory overhead, redirection is only performed if the payload structure heuristically aligns with DNS protocol fields. The eBPF program performs raw parsing within SKB bounds (skb-$>$data\_end) and validates structure against constraints defined in RFC 1035. If the payload passes these checks, clone redirection is triggered. The DNS protocol parsing as explained previously from application data of other protocols in SKB is explained in Algorithm~\ref{sec:alg4}.
 
-Before redirection, the TC eBPF program uses \texttt{bpf\_get\_current\_pid\_tgid} to fetch the current \texttt{task\_struct}, identifying the process and thread responsible for sending the packet. It then checks the \texttt{malicious\_process\_map} to verify whether the process has been flagged as malicious by the userspace eBPF agent due to prior suspicious transfers. If flagged, the kernel drops subsequent packets while still cloning and redirecting packets. This design enables dynamic, process-level enforcement, allowing userspace agent to observe retry behavior, gather telemetry, and ultimately terminate stealthy implants that beacon intermittently and exceed the configured threshold.
+Before redirection, the TC eBPF program uses \texttt{bpf\_get\_current\_pid\_tgid} to fetch the current \texttt{task\_struct}, identifying the process and thread responsible for sending the packet. It then checks the \texttt{malicious\_process\_map} to verify whether the process has been flagged as malicious by the userspace eBPF agent due to prior suspicious transfers. If flagged, the kernel drops subsequent packets while still cloning and redirecting packets. This design enables dynamic, process-level enforcement, allowing the userspace agent to observe retry behavior, gather telemetry, and ultimately terminate stealthy implants that beacon intermittently and exceed the configured threshold.
 
 If the process is not yet flagged, the eBPF program extracts the source UDP port and updates \texttt{src\_port\_task\_struct\_map} with the port as the key and the process/thread ID as the value. It also increments a counter in \texttt{task\_struct\_redirect\_ct\_map}, keyed by the same PID/TID composite, to track suspicious activity. These updates are detailed in Algorithm~\ref{sec:alg5}.
 
@@ -822,7 +823,7 @@ This continuous feedback mechanism for threat hunting of malicious processes in 
 \label{passive:sec2}
 The parallel packet sniffing procedure from the respective network namespace mirrors the approach described earlier in the active phase. As in active mode, clone-redirected packets are received in zero-copy userspace, preserving both application payloads and lower-layer headers. The agent parses each packet to identify embedded DNS structures. If no valid DNS layer is found, the source port is removed from \texttt{src\_port\_task\_struct\_map} to prevent stale state tracking. When DNS is detected, the agent applies the same logic as in active mode: checking a local LRU memory cache for known blacklisted domains and, if absent, performing feature extraction and deep learning inference.
 If a packet is classified as malicious, the agent updates the blacklist and streams a threat event to the observability backend. Because these are clone-redirected packets, they are not reinjected. Instead, the agent uses the source port to retrieve the process and thread ID from \texttt{task\_struct\_redirect\_ct\_map}, flags the process in \texttt{malicious\_process\_map}, and enables the kernel to drop future packets from it. The agent also checks how many packets have been redirected for that process and are malicious. If the count exceeds a configurable threshold and the process is marked malicious, the agent terminates the respective process.
-This process-aware passive mode enables adaptive detection and response for exfiltration over nonstandard ports. The passive processing logic of the userspace eBPF agent, as previously explained, is detailed in Algorithm~\ref{sec:alg6}.
+This process-aware passive mode enables adaptive detection and response for exfiltration over non-standard ports. The passive processing logic of the userspace eBPF agent, as previously explained, is detailed in Algorithm~\ref{sec:alg6}.
 
 \subsubsection{\textbf{eBPF Maps concurrency handling}}
 \label{passive:sec3}
@@ -889,7 +890,7 @@ Perform necessary \texttt{bpf\_map\_updates}\;
 
 % % alg 5
 \begin{algorithm}[H]
-\caption{eBPF Map Handling in \textbf{Passive} Mode of Agent}
+\caption{eBPF Map Handling within Kernel for \textbf{Passive} Mode of Agent}
 \label{sec:alg5}
 \SetKwInOut{Input}{Input}
 \SetKwInOut{Output}{Output}
@@ -1049,7 +1050,7 @@ In the Linux kernel networking stack, encapsulated traffic is managed through vi
 \newpage
 \subsection{Feature Analysis in Data Plane}
 \label{sec:features}
-Features used by the eBPF agent in the data plane are derived from real-world DNS exfiltration traffic. Selection was guided by known patterns in DNS tunneling, C2 channels, and encoding behaviors observed in open source and proprietary DNS exfiltration tools and real-world attack logs. The goal is to enable real-time filtering of malicious queries with minimal overhead while adhering to DNS protocol constraints defined in RFC 1035. DNS packets over UDP are limited to 512 bytes, with domain names capped at 255 characters. Individual labels must conform to structural limits (typically 63 characters), and payload-bearing query types such as TXT and NULL can embed encoded data. Although extensions like EDNS and TCP-based DNS allow larger payloads, most abuse still occurs over standard UDP. To handle this, feature selection is divided into two stages: \hyperref[sec:kernel-features]{\emph{kernel-space features}}, enforced by kernel eBPF programs for inline filtering and classification; and \hyperref[sec:userspace-features]{\emph{userspace features}}, analyzed by a deep learning model to detect stealthy or obfuscated payloads.
+Features used by the eBPF agent in the data plane are derived from the real world DNS exfiltration traffic. Selection was guided by known patterns in DNS tunneling, C2 channels, and encoding behaviors observed in open source and proprietary DNS exfiltration tools and real-world attack logs. The goal is to enable real-time filtering of malicious queries with minimal overhead while adhering to DNS protocol constraints defined in RFC 1035. DNS packets over UDP are limited to 512 bytes, with domain names capped at 255 characters. Individual labels must conform to structural limits (typically 63 characters), and payload-bearing query types such as TXT and NULL can embed encoded data. Although extensions like EDNS and TCP-based DNS allow larger payloads, most abuse still occurs over standard UDP. To handle this, feature selection is divided into two stages: \hyperref[sec:kernel-features]{\emph{kernel-space features}}, enforced by kernel eBPF programs for inline filtering and classification; and \hyperref[sec:userspace-features]{\emph{userspace features}}, analyzed by a deep learning model to detect stealthy or obfuscated payloads.
 
 % \titlespacing{\subsection}{0pt}{*0.8}{*0.4}
 \subsubsection{Kernel eBPF TC program classification and filtering features}
@@ -1069,7 +1070,7 @@ The deep learning model is trained on a synthetically generated dataset construc
     \item \textbf{Benign SLDs from Cisco:} The top 1 million SLDs from Cisco are not used for training, but are loaded into an in-memory LRU cache by the eBPF agent. This avoids unnecessary inference on common and trusted domains and improves performance. The cache is fully reprogrammable from the control plane.
     \item \textbf{ISP-Captured Dataset:} The core training data set is sourced from~\citeauthor{ziza2023dns}, consisting of live-sniffed DNS traffic from an ISP, with approximately 50 million samples that span both benign and malicious traffic~\cite{ziza2023dns}.
     \item \textbf{Synthetic Exfiltration Dataset:} To address class imbalance, a custom data set was created using open source tools such as \texttt{DET}, \texttt{DNSExfiltrator}, \texttt{DNSCat2}, \texttt{Sliver}, \texttt{Iodine}, and internal DNS exfiltration scripts. These samples include a wide range of obfuscation techniques (see 
-    Table~\ref{dns_payload_obfuscation}) across various file types—text (e.g., \texttt{.txt}, \texttt{.md}), image (e.g., \texttt{.jpg}, \texttt{.png}), and video (e.g., \texttt{.mp4})
+    Table~\ref{dns_payload_obfuscation}) across various file types—text (e.g., \texttt{.txt}, \texttt{.md}), image (e.g., \texttt{.jpg}, \texttt{.jpeg}, \texttt{.png}), and video (e.g., \texttt{.mp4})
 \end{enumerate}
 
 
@@ -1192,23 +1193,6 @@ To optimize training performance, TensorFlow’s shuffler and prefetch mechanism
 % %     }
 % % }
 
-\begin{table}[h]
-\small
-\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
-\centering
-\caption{Kafka Stream Topics utilized by the eBPF agent}
-\label{tab:kafka-topics}
-\begin{tabular}{|L{5cm}|L{10cm}|}
-\hline
-\textbf{Kafka Topic Name} & \textbf{Description} \\
-\hline
-\texttt{exfil-sec} & Kafka topic used by the eBPF agents in data plane to stream prevented DNS threat events. \\
-\hline
-\texttt{exfil-sec-infer-controller} & Topic used by the controller to publish dynamic domain blacklists to DNS servers for data plane eBPF agent update userspace caches. \\
-\hline
-\end{tabular}
-\normalsize
-\end{table}
 
 
 
@@ -1227,13 +1211,32 @@ Appendix A provides additional details on the metrics exported by the eBPF agent
 % \footnote{Appendix A provides additional details on the metrics exported by the eBPF agent.}
 % For details, see \hyperref[sec:dp_ebpf_node_metrics]{eBPF node metrics}.
 
+
+\begin{table}[ht]
+\small
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\centering
+\caption{Kafka Topics utilized by the eBPF Agent}
+\label{tab:kafka-topics}
+\begin{tabular}{|L{5cm}|L{10cm}|}
+\hline
+\textbf{Kafka Topic Name} & \textbf{Description} \\
+\hline
+\texttt{exfil-sec} & Kafka topic used by the eBPF agents in data plane to stream prevented DNS threat events. \\
+\hline
+\texttt{exfil-sec-infer-controller} & Topic used by the controller to publish dynamic domain blacklists to DNS servers for data plane eBPF agent update userspace caches. \\
+\hline
+\end{tabular}
+\normalsize
+\end{table}
+
 \section{Control Plane}
 As illustrated in the overview of the component components of the control plane, the controller is designed to be entirely stateless, relying on the GPSQL backend used by PowerDNS for DNS state management and RPZ zones to track malicious domains. The control plane currently consists of a single Tomcat web server, with Spring Kafka consumer integrated to consume malicious threat events from the exfil-sec Kafka topic. These events are emitted by all endpoints in the data plane and contain blacklisted domain metadata and node-level context that identify where the threat was detected. Upon consuming these events, the control plane dynamically updates the RPZ backend with the (SLDs) associated with malicious domains in threat events. This update enforces DNS-level security enforcement, which causes the DNS server to start dropping any queries to these domains. To optimize performance and prevent malicious DNS queries from ever reaching the DNS server again once blacklisted, the control plane also writes to another Kafka topic (exfil-sec-infer-controller). This topic is consumed by all data plane nodes to rehydrate their local malicious userspace caches, effectively reprogramming the eBPF agents at each endpoint to drop related packets immediately at the endpoint, reducing network hops. For enhanced security, the control plane additionally performs DNS resolution on the malicious domains to extract their corresponding Layer 3 addresses. These addresses, which  represent active C2 or tunneling servers on the public internet, are also streamed in exfil-sec-infer-controller Kafka topic used to dynamically enforce layer 3 network policies inside the kernel post consumed by the eBPF agents deployed across the data plane for cross protocol correlation. With fully asynchronous, bidirectional communication between the control plane and the data plane via Kafka, the architecture enables continuous re-programmability of data plane nodes to enforce dynamic kernel-level security policies. It also supports the horizontal scalability of individual components crucial for production-grade cloud environments. This design directly targets and stops DGA, providing robust protection against mutation in both Layer 3 and Layer 7.
 
 
 \section{Distributed Infrastructure }
 As described earlier in the security framework overview, the distributed infrastructure consists mainly of a PowerDNS authoritative server, a PowerDNS recursor, a PostgreSQL-based GPSQL backend, Kafka brokers, and Prometheus scrapers. These scrapers collect metrics exposed by eBPF agents deployed in the data plane. Notably, eBPF agents do not handle malicious DNS exfiltration over TCP due to the complexity of the TCP state machine and congestion control within the kernel. To address this, TCP-based DNS exfiltration attempts are intercepted in userspace by PowerDNS recursor query interceptors acting as middleware. Because the PowerDNS recursor supports only Lua-based interceptors, a custom Lua module was developed. This interceptor extracts features from DNS queries received over TCP and performs inference using a serialized ONNX deep learning model. Leveraging Lua’s lightweight, high-performance nature, the interceptor accesses the GPSQL backend’s RPZ table, which contains known malicious domains. This enables returning \texttt{NXDOMAIN} responses for blacklisted queries, skipping inference to improve throughput.
-Furthermore, the interceptor employs PowerDNS internal domainsets - fast, in-memory trie-based caches of malicious domains detected over TCP. These caches enable rapid filtering of repeated exfiltration attempts. To maintain accuracy without inference overhead, the domainsets periodically synchronize with the RPZ, ensuring up-to-date enforcement. Appendix B explains Lua interceptor filtering DNS exfiltration over TCP.
+Furthermore, the interceptor employs PowerDNS internal domainsets - fast, in-memory trie-based caches of malicious domains detected over TCP. These caches enable rapid filtering of repeated exfiltration attempts. To maintain accuracy without inference overhead, the domainsets periodically synchronize with the RPZ, ensuring up-to-date enforcement. Appendix B explains the Lua interceptor filtering DNS exfiltration over TCP.
 
 
 
@@ -1252,7 +1255,7 @@ This chapter evaluates the effectiveness of the security framework in a distribu
 
 
 \section{Environment Setup}
-The security framework was deployed across eight CSSVLAB nodes (CSSVLAB{01–08}), each running Ubuntu 24.02 with Linux kernel 6.12 on Intel Xeon Gold 6130. Each node had 8GB RAM and 24GB storage. The systems ran under the \texttt{netvsc} hypervisor network driver, with 100 Gbits/sec network bandwidth and 8 TX/RX hardware queues aligned to CPU cores to enable optimal packet steering and parallel processing for high-throughput netflow handling. In addition, all eight CPU cores and memory resided on a single NUMA node, eliminating memory lookup overhead during kernel benchmarking. The test bench launches a custom PowerDNS authoritative and recursor server on CSSVLAB08. The controller and a Kafka single broker instance run on CSSVLAB01. Nodes CSSVLAB{02–07}, excluding CSSVLAB06, act as the data plane, each running the eBPF agent and using the custom PowerDNS server as the default resolver via systemd-resolved. CSSVLAB06 is used to simulate DNS exfiltration attacks against data plane nodes, tunneling DNS queries through the same PowerDNS instance. The complete deployment is illustrated in Figure~\ref{fig:deployed-arch}
+The security framework was deployed on eight CSSVLAB nodes (CSSVLAB{01–08}), each running Ubuntu 24.02 with Linux kernel 6.12 on Intel Xeon Gold 6130. Each node had 8GB RAM and 24GB storage. The systems ran under the \texttt{netvsc} hypervisor network driver, with 100 Gbits/sec network bandwidth and 8 TX/RX hardware queues aligned to CPU cores to enable optimal packet steering and parallel processing for high-throughput netflow handling. In addition, all eight CPU cores and memory resided on a single NUMA node, eliminating memory lookup overhead during kernel benchmarking. The test bench launches a custom PowerDNS authoritative and recursor server on CSSVLAB08. The controller and a Kafka single broker instance run on CSSVLAB01. Nodes CSSVLAB{02–07}, excluding CSSVLAB06, act as the data plane, each running the eBPF agent and using the custom PowerDNS server as the default resolver via systemd-resolved. CSSVLAB06 is used to simulate DNS exfiltration attacks against data plane nodes, tunneling DNS queries through the same PowerDNS instance. The complete deployment is illustrated in Figure~\ref{fig:deployed-arch}
 
 
 \begin{figure}[h]
@@ -1263,13 +1266,13 @@ The security framework was deployed across eight CSSVLAB nodes (CSSVLAB{01–08}
 \end{figure}
 
 \section{Evaluations Results}
-The evaluation of this security framework is presented for each individual component in the subsequent sections.
+The evaluation of this security framework is presented for each individual architecture sub-component in the following sections.
 
 \subsection{Data Plane}
-The effectiveness of the eBPF agent at the endpoint of the data plane is evaluated through quantized deep learning model metrics, comparison of DNS request throughput in both operational phases (active and passive), and measurement of bandwidth and resource utilization, including CPU and memory usage, as well as throughput of kernel events processing. Finally, the agent’s resilience coverage against advanced adversary emulation frameworks is explained. Performance evaluation is performed on a single selected node within the data plane running the agent.
+The effectiveness of the eBPF agent at the endpoint of the data plane is evaluated through quantized deep learning model metrics, comparison of DNS request throughput in both operational phases (active and passive), and measurement of bandwidth and resource utilization, including CPU and memory usage, as well as throughput of kernel events processing. Finally, the agent’s resilience coverage against advanced adversary emulation frameworks including agent's response time for these attacks is evaluated. Agent's performance evaluation is performed on a single node within the data plane running the eBPF agent at the endpoint.
 
 \subsubsection{Deep Learning Model Evaluation}
-The evaluation of the trained deep learning model was performed on a 3.8 million domain data set, divided into 70\% for training and 15\% for validation and testing. After training, the model achieved a validation precision of 99.7\%, with loss steadily decreasing per epoch and reaching 0.98\% at the end of the training. Given the DNS data exfiltration use case, the model performance was evaluated primarily with an emphasis on minimizing false positives. High false positives would not only result in the eBPF agent dropping benign DNS packets and generating false threat events, but could also terminate legitimate processes introducing operational risks. In contrast, false negatives were considered less critical, as the agent would allow malicious traffic to pass through without taking privilege-level actions. Therefore, \textbf{precision} was prioritized over recall. Specifically, precision and recall are defined as:
+The trained deep learning model was evaluated on a dataset of 3.8 million domains, divided into 70\% for training and 15\% each for validation and testing. After training, the model achieved a validation precision of 99.7\%, with the loss steadily decreasing throughout the 25 training epochs and reaching 0.98\% at the end, as shown in Figure~\ref{fig:model_precision}. Given the DNS data exfiltration use case, the model performance was assessed with a primary emphasis on minimizing false positives. A high false-positive rate would not only cause the eBPF agent to drop benign DNS packets and generate false threat events, but could also result in the termination of legitimate processes, thereby introducing operational risks. In contrast, false negatives were considered less critical, as the agent would allow malicious traffic to pass through without taking privilege-level actions. Therefore, \textbf{precision} was prioritized over recall. These metrics are formally defined as:
 \[
 \text{Precision} = \frac{\text{TP}}{\text{TP} + \text{FP}},
 \]
@@ -1277,36 +1280,47 @@ The evaluation of the trained deep learning model was performed on a 3.8 million
 \[
 \text{Recall} = \frac{\text{TP}}{\text{TP} + \text{FN}}.
 \]
-Based on these considerations and a dataset engineered to capture a wide range of data obfuscation techniques, the model achieved a high precision of 99.59\% and a recall of 99.87\%. For runtime inference using ONNX within the eBPF agent, a binary classification threshold of 0.85 was selected. This value was chosen based on the performance of the F1 score on varying thresholds, paying careful attention to the corresponding changes in precision and recall. Since minimizing false positives was a top priority, the threshold was selected to maximize precision while still maintaining a relatively high recall. This high-precision, low–false-positive result was made possible by the selected feature set, which included Shannon entropy across various encoding and encryption schemes—enabling the model to learn effectively. Figure~\ref{tab:model-evaluation-metrics} and Figure~\ref{fig:threshold-vs-metrics} present the model’s performance on both training and validation datasets, including the confusion matrix. Figure~\ref{fig:model_precision} and Figure~\ref{fig:model_f1_threshold} illustrate precision vs. recall improvements over 25 training epochs, and the F1 score and precision/recall score under different thresholds selected to classify in the test dataset.
+Based on these considerations, and using a data set engineered to capture a wide range of data obfuscation techniques, the model achieved a precision of 99.59\% and a recall of 99.87\% when evaluated on the test dataset, as shown in Figure~\ref{tab:model-evaluation-metrics}, with the corresponding confusion matrix presented in Figure~\ref{fig:conf-matrix}.
+For runtime inference using ONNX within the eBPF agent, a binary classification threshold of 0.85 was selected. This value was determined by analyzing F1 score performance across varying classification thresholds, as illustrated in Figure~\ref{fig:model_f1_threshold}, with particular attention to the trade-off between precision and recall. Since minimizing false positives was the top priority, the selected threshold maximized precision while maintaining a relatively high recall.
+This high-precision, low false-positive outcome was enabled by the chosen feature set, which included Shannon entropy across multiple encoding and encryption schemes, allowing the model to effectively learn obfuscation patterns.
+
+
+
 
 % 82/82 ━━━━━━━━━━━━━━━━━━━━ 292s 2s/step - ac: 0.9973 - auc: 0.9997 - fn: 831.1627 - fp: 2741.8162 - loss: 0.0099 - precision: 0.9959 - recall: 0.9987 - tn: 663969.7500 - tp: 664216.3125 - val_ac: 0.9974 - val_auc: 0.9997 - val_fn: 314.0000 - val_fp: 1102.0000 - val_loss: 0.0091 - val_precision: 0.9959 - val_recall: 0.9988 - val_tn: 271721.0000 - val_tp: 270863.0000
 % Epoch 25/25
+
+
 \begin{figure}[H]
-\begin{minipage}[b]{0.48\textwidth}
-\centering
-\begin{tabular}{lcc}
-\hline
-\textbf{Metric} & \textbf{Training} & \textbf{Validation} \\
-\hline
-Accuracy & 0.9973 & 0.9997 \\
-AUC & 0.9997 & 0.9997 \\
-Loss & 0.0099 & 0.0091 \\
-Precision & 0.9959 & 0.9959 \\
-Recall & 0.9987 & 0.9988 \\
-\hline
-\end{tabular}
-\captionof{table}{Model Evaluation Metrics}
-\label{tab:model-evaluation-metrics}
-\end{minipage}
+\noindent
+\begin{minipage}[t]{0.45\textwidth}
+  \vspace{-13em}
+  \captionsetup{type=table}
+  \captionof{table}{Model Evaluation Metrics}
+  \label{tab:model-evaluation-metrics}
+  \vspace{0.5em}
+  \centering
+  \small % Reduce font size to help it fit
+  \begin{tabular}{@{}lcc@{}} % @{} removes side padding
+    \toprule
+    \textbf{Metric} & \textbf{Train} & \textbf{Test} \\
+    \midrule
+    Accuracy & 0.9973 & 0.9997 \\
+    AUC & 0.9997 & 0.9997 \\
+    Loss & 0.0099 & 0.0091 \\
+    Precision & 0.9959 & 0.9959 \\
+    Recall & 0.9987 & 0.9988 \\
+    \bottomrule
+  \end{tabular}
+\end{minipage}%
 \hfill
-\begin{minipage}[b]{0.48\textwidth}
-\centering
-\includegraphics[width=\textwidth]{UWThesis/images/results/model/confusion_matrix.png}
-\caption{Confusion Matrix}
-\label{fig:threshold-vs-metrics}
+\begin{minipage}[t]{0.48\textwidth}
+  \centering
+  \includegraphics[width=0.95\textwidth]{UWThesis/images/results/model/confusion_matrix.png}
+  \caption{Confusion Matrix}
+  \label{fig:conf-matrix}
 \end{minipage}
 \end{figure}
-
 % \begin{figure}[H]
 %   \centering
 %   \begin{minipage}{0.48\textwidth}
@@ -1343,9 +1357,8 @@ Recall & 0.9987 & 0.9988 \\
 
 
 \subsubsection{eBPF Agent Request Throughput and Latency Metrics in Active Mode}
-The performance of the system was evaluated in active mode by measuring the impact on benign DNS traffic during standard end-to-end resolution, from a userspace process sending DNS requests, through kernel redirection through eBPF programs, to the network device monitored by the agent. For cache hits, the request is matched against the global SLD cache; for cache misses, live ONNX inference is performed. The kernel feature thresholds in the eBPF map were intentionally kept stringent, causing most DNS packets to be flagged as suspicious to stress-test the throughput. Throughput was measured using DNSPerf, which quantifies both request throughput and DNS response success rates. The test locked DNSPerf to send 10,000 DNS requests per second over 20 seconds, monitoring packet loss. The recursor server was assumed to be healthy with no add-on impact on DNS throughput testing. The testing node uses the hypervisor-supported \texttt{netvsc} virtual driver with 8 combined RX/TX queues, but lacks the discrete ring buffers required for \texttt{AF\_XDP}, making direct packet injection into TX queues unsupported. Consequently, the egress path relies on \texttt{AF\_PACKET}. In the cache-hit scenario (100\% benign global SLD matches), throughput ranged from 8,100 to 9,820 DNS requests/sec with zero packet loss, as shown in Figure~\ref{fig:throughput_gsld}. The X-axis represents benchmark duration, while the Y-axis shows both packet throughput and loss. Latency remained low, ranging from near 0 ms to 250 ms per 10k sample (Figure~\ref{fig:latency_gsld}, with X-axis as duration and Y-axis as latency). In contrast, the cache-miss path requiring live inference reduced throughput to 430–520 requests/sec (Figure~\ref{fig:throughput_onnx}) and showed peak latencies of up to 750 ms (Figure~\ref{fig:latency_onnx}), using the same axis conventions. Despite this, no packet loss was observed, which ensures reliability. The latency spike is attributed to the overhead of UNIX domain socket communication with the ONNX inference server and Python's global interpreter lock (GIL), which limits concurrency. In contrast, the eBPF agent being compiled binary support true concurrency and parallelism, offering significantly better performance.
+The performance of the system was evaluated in active mode by measuring the impact on benign DNS traffic during standard end-to-end resolution, from a userspace process sending DNS requests, through kernel redirection through eBPF programs, to the network device monitored by the agent. For cache hits, the request is matched against the global SLD cache; for cache misses, live ONNX inference is performed. The kernel feature thresholds in the eBPF map were intentionally kept stringent, causing most DNS packets to be flagged as suspicious to stress-test the throughput. Throughput was measured using DNSPerf, which quantifies both request throughput and DNS response success rates. The test locked DNSPerf to send 10,000 DNS requests per second over 20 seconds, monitoring packet loss. The recursor server was assumed to be healthy with no additional impact on DNS throughput testing. The testing node uses the hypervisor-supported \texttt{netvsc} virtual driver with 8 combined RX/TX queues, but lacks the discrete ring buffers required for \texttt{AF\_XDP}, making direct packet injection into TX queues unsupported. Consequently, the egress path relies on \texttt{AF\_PACKET}. In the cache-hit scenario (100\% benign global SLD matches), throughput ranged from 8,100 to 9,820 DNS requests/sec with zero packet loss, as shown in Figure~\ref{fig:throughput_gsld}. The X-axis represents the benchmark duration, while the Y-axis shows both packet throughput and loss. Latency remained low, ranging from near 0 ms to 250 ms per 10k sample (Figure~\ref{fig:latency_gsld}, with X-axis as duration and Y-axis as latency). In contrast, in the cache-miss path that requires live inference, the throughput was reduced to 430-520 requests / sec (Figure~\ref{fig:throughput_onnx}) and showed peak latencies of up to 750 ms (Figure~\ref{fig:latency_onnx}), using the same axis conventions. Despite this, no packet loss was observed, which ensures reliability. The latency spike is attributed to the overhead of UNIX domain socket communication with the ONNX inference server and Python's global interpreter lock (GIL), which limits concurrency. In contrast, the eBPF agent being compiled binary support true concurrency and parallelism, offering significantly better performance.
 It was observed that throughput becomes unstable beyond 5,000 DNS requests/sec, though such traffic volumes typically indicate malicious behavior and can be rate-limited in kernel eBPF programs. Overall, for stress testing over a prolonged period of time, the agent successfully processed a maximum throughput of 67.3 million DNS requests per hour with no packet loss, while performing deep parsing across both kernel and userspace.
-
 \begin{figure}[H]
   \centering
   \begin{minipage}[t]{0.47\textwidth}
@@ -1381,7 +1394,7 @@ It was observed that throughput becomes unstable beyond 5,000 DNS requests/sec, 
 
 \subsubsection{eBPF Agent Request Throughput and Latency Metrics in Passive Mode}
 The primary evaluation metric in passive mode is the volume of DNS-based data exfiltration successfully prevented before terminating malicious processes. In this mode, the agent employs a clone-and-redirect mechanism, allowing original DNS packets to pass through while kernel programs inspect traffic for signs of malicious activity. Upon detection, the kernel notifies the eBPF agent to kill the responsible process. Traditional throughput and latency are not emphasized; instead, performance is measured by how effectively the system detects and stops beaconing implants that transmit data over DNS, often across random UDP ports. 
-Figure~\ref{fig:data_loss_prev} illustrates the total volume of exfiltrated data prevented by the eBPF agent before process termination. The horizontal axis represents different process kill thresholds, while the vertical axis shows the amount of data loss prevented. DNSCat2 was used for the benchmark configured with a 20 second beaconing interval and exfiltrating through various types of DNS records (MX, TXT, CNAME, HTTP, SRV, etc.), demonstrating the security strength in delaying termination just enough to observe beacon patterns, allowing network administrators to tune termination thresholds for maximum insight.
+Figure~\ref{fig:data_loss_prev} illustrates the total volume of exfiltrated data prevented by the eBPF agent before process termination. The horizontal axis represents different process kill thresholds, while the vertical axis shows the amount of data loss prevented. DNSCat2 was used for the benchmark configured with a 20-second beaconing interval and exfiltrating through various types of DNS records (MX, TXT, CNAME, HTTP, SRV, etc.), demonstrating the security strength in delaying termination just enough to observe beacon patterns, allowing network administrators to tune termination thresholds for maximum insight.
 
 \begin{figure}[H]
   \centering
@@ -1433,17 +1446,24 @@ Throughout the benchmark, the agent process consistently consumed only 8–10\% 
   \end{minipage}
 \end{figure}
 
-\subsubsection{eBPF Agent Effectiveness over DNS Exfiltration Tools}
+\subsubsection{Effectiveness of eBPF Agent Against DNS Exfiltration Frameworks}
 The eBPF agent was evaluated across all data plane endpoints against widely used DNS-based C2 frameworks commonly employed by red teams. Tests focused on disrupting C2 and exfiltration activity tunneled through DNS, with CSSVLAB06 serving as the attacker node. The BishopFox Sliver framework was tested in agent's active mode for both basic exfiltration and advanced operations, including remote shell access, code execution, file transfers, port forwarding, and persistence, entirely over DNS. The agent intercepted the initial C2 packet at the kernel level, immediately disrupting communication, triggering retries, and terminating implants for both beacon-based and session-based channels. Since Sliver lacks randomized UDP port support, transport obfuscation was assessed using dnscat2. In both active and passive modes, the agent enforced mitigation policies, leading to full-session termination and zero data exfiltration. The average response time for each measured exfiltration attempt was 316.233 microseconds, as shown in Figure~\ref{fig:response_speed}. For raw exfiltration, tools such as DET were immediately blocked. Furthermore, iodine, which tunnels through TUN/TAP interfaces, was effectively mitigated. All other bulk exfiltration tools were similarly thwarted. Table~\ref{tab:dns-framework-coverage} summarizes the tools tested and the associated attack vectors prevented.
 
 \begin{figure}[H] 
  \centering
- \begin{minipage}[b]{0.95\textwidth}
+ \begin{minipage}[b]{1\textwidth}
     \centering
-    \includegraphics[width=0.58\textwidth]{UWThesis/images/results/response_speed/response_speed.png}
+    \includegraphics[width=0.57\textwidth]{UWThesis/images/results/response_speed/response_speed.png}
     \caption{eBPF Agent: Response Time for Each DNS Exfiltration Attempt}
     \label{fig:response_speed}
   \end{minipage}
+
+  %  \begin{minipage}[b]{0.95\textwidth}
+  %   \centering
+  %   \includegraphics[width=0.5\textwidth]{UWThesis/images/results/response_speed/kernel_dpi_time.png}
+  %   \caption{eBPF TC filter DNS DPI time} 
+  %   \label{fig:response_speed}
+  % \end{minipage}
 \end{figure}
 
 
@@ -1482,7 +1502,7 @@ The evaluation of the stateless controller server focuses on its effectiveness i
 \end{figure}
 
 \subsection{Distributed Infrastructure}
-The performance evaluation focuses on the DNS server, assessing the throughput impact of the Lua-based interceptor in the PowerDNS Recursor. As shown in Figure~\ref{fig:throughput_gsld_tcp}, which plots benchmark duration on the horizontal axis, with throughput and packet loss on the two vertical axes, the server experienced a drop to 490 DNS requests per second under a 10,000 requests/sec load. This degradation stems from reusing the same inference server design as the data plane, reliance on UNIX sockets, and Python’s concurrency limits. Latency results in Figure~\ref{fig:throughput_onnx_tcp} show the benchmark duration on the X-axis for a period of 20 seconds and associated latency on the Y-axis, peaking at 750 ms with a mean deviation of 380 ms. All TCP traffic benchmarks used \texttt{TCP\_FAST\_OPEN}, allowing data transmission with the initial SYN packet and reducing handshake overhead for accurate DNS-over-TCP latency measurements. 
+Performance evaluation focuses on the DNS server, assessing the throughput impact of the Lua-based interceptor in the PowerDNS Recursor. As shown in Figure~\ref{fig:throughput_gsld_tcp}, which plots the benchmark duration on the horizontal axis, with throughput and packet loss on the two vertical axes, the server experienced a drop to 490 DNS requests per second under a load of 10,000 requests / sec. This degradation stems from reusing the same inference server design as the data plane, reliance on UNIX sockets, and Python’s concurrency limits. Latency results in Figure~\ref{fig:throughput_onnx_tcp} show the benchmark duration on the X-axis for a period of 20 seconds and associated latency on the Y-axis, peaking at 750 ms with a mean deviation of 380 ms. All TCP traffic benchmarks used \texttt{TCP\_FAST\_OPEN}, allowing data transmission with the initial SYN packet and reducing handshake overhead for accurate DNS-over-TCP latency measurements. 
 Figure~\ref{fig:dns_rpz} displays the blacklisted domains listed in the DNS RPZ table on the server.
 
 % \footnote{Appendix B provides additional details for blacklisted domains DNS RPZ table on DNS server}
@@ -1721,7 +1741,7 @@ Table~\ref{sec:dp_ebpf_node_metrics} describes all the metrics exported by each 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.9\linewidth,height=0.4\textheight,keepaspectratio]{UWThesis/images/results/metrics/dns_exfiltrated_packet_detailed_metrics.png}
-    \caption{Metrics of Prevented DNS exfiltrated packets}
+    \caption{Metrics of Prevented DNS Exfiltrated Packets}
     \label{fig:dns-exfil-packet-metrics}
 \end{figure}
 
@@ -1731,7 +1751,7 @@ In the data plane, ensuring security beyond kernel-enforced capability checks, s
 To mitigate this risk, additional eBPF programs are loaded into the kernel and attached to LSM hooks that intercept BPF syscalls, including  \texttt{BPF\_PROG\_LOAD}. These LSM programs verify digital signatures on the incoming eBPF bytecode, following a process analogous to the verification of loadable modules by the kernel.
 Each data plane node’s agent bootstraps a local certificate authority (CA) that generates ephemeral elliptic curve certificates and private keys. The agent signs the raw eBPF bytecode prior to injection, establishing an initial trust layer. After JIT compilation, the optimized bytecode is signed again, along with the original raw bytecode signature, creating a two-stage chain of trust. Certificates and keys are securely stored in the kernel session keyring, tied to the user’s login session on the endpoint.
 When the \texttt{BPF\_PROG\_LOAD} syscall occurs, the LSM hook verifies both raw and compiled bytecode signatures against the asymmetric keys in the keyring. These signatures are also maintained within the eBPF maps to support verification logic. This dual-signature approach ensures that neither raw nor compiled bytecode can be tampered with before kernel injection.
-Furthermore, the core security layer integrates with a centralized control plane connected to the cloud Public Key Infrastructure (PKI), enabling a scalable layered trust model - from cloud PKI to kernel-level mandatory access control. While the keyring currently stores sensitive keys in kernel-guarded memory pages, the kernel restricts access to unprivileged userspace processes. In addition, these security primitives support integration with Trusted Platform Modules (TPMs) or Hardware Security Modules (HSMs) - commonly available in cloud environments - allowing the keyring and cryptographic keys to be offloaded to hardware-backed firmware (Intel TDX, AMD SEV-SNP), thereby enhancing security guarantees. The core implementation for the kernel resident LSM-integrated eBPF verification program is detailed below.
+Furthermore, the core security layer integrates with a centralized control plane connected to the cloud Public Key Infrastructure (PKI), enabling a scalable layered trust model - from cloud PKI to kernel-level mandatory access control. While the keyring currently stores sensitive keys in kernel-guarded memory pages, the kernel restricts access to unprivileged userspace processes. In addition, these security primitives support integration with Trusted Platform Modules (TPMs) or Hardware Security Modules (HSMs) - commonly available in cloud environments - allowing the keyring and cryptographic keys to be offloaded to hardware-backed firmware, thereby enhancing security guarantees. The core implementation for the kernel resident LSM-integrated eBPF verification program is detailed below.
 % This innovative security design to protect the Linux kernel from runtime tampering by integrating the kernel keyring, LSM has gained significant traction and will be presented in front of Linux kernel security maintainers and developers of mandatory access control subsystems in the upcoming kernel security conference.
 
 
@@ -1750,7 +1770,7 @@ BPF_PROG(bpf, int cmd, union bpf_attr *attr, unsigned int size) {
     bpf_copy_from_user(combined_buf->data, insn_len, attr->insns);
     bpf_probe_read_kernel(combined_buf->data + insn_len, orig_data->sig_len, orig_data->sig);
     // Create dynptrs for PKCS7 verification
-    // dynptrs work similar to kptr but allowing to point to buffer location storing large amount of data as in case of signature for eBPF verifier requirements. 
+    // dynptrs work similar to kptr but allowing to point to buffer location storing large amount of data as in case of eBPF signed paylods to satisfy eBPF verifier requirements. 
     bpf_dynptr_from_mem(combined_buf->data, total_size, 0, &combined_data_ptr);
     bpf_dynptr_from_mem(mod_sig->sig, mod_sig_size, 0, &sig_ptr);
     bpf_dynptr_from_mem(orig_data->data, orig_data->data_len, 0, &orig_data_ptr);
@@ -1770,7 +1790,7 @@ An additional ingress TC eBPF program is attached to the bridge interface. Inspe
 
 % alg 7
 \begin{algorithm}[H]
-\label{sec:alg_active_mode_integrity}
+\label{sec:alg7}
 \caption{SKB Integrity Verification and Secure Redirection in \textbf{Active} Mode}
 \SetKwInOut{Input}{Input}
 \SetKwInOut{Output}{Output}
