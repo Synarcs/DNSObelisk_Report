@@ -13,6 +13,7 @@
     │   ├── UWThesis__1_-3.pdf
     │   └── uwthesis.tex
     ├── images/
+    ├── ieee/
     ├── Presentations/
     ├── kernel_dns_sec_report.tex
     ├── LICENSE
@@ -24,6 +25,7 @@
 ```
 * ```detailed/```: Covers Latex for the much detailed implemntation of the security freamework.
 * ```images/```: Results, Evaluation of the security freamework.
+* ```ieee/```: Ieee Version for academic research conferences currently adhering to usenix IEEE latex style (Same research paper for the final thesis report in IEEE format).
 * ```Presentations/```: Covers all the presentations for all conference talks and final defense at university.
 * ```kernel_dns_sec_report.tex```: Final shortened Latex for the same report
 * ```Vedang_Final_Report.pdf```: Final submitted project report for the complete framework
