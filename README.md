@@ -12,6 +12,7 @@
     ├── detailed/
     │   ├── UWThesis__1_-3.pdf
     │   └── uwthesis.tex
+    ├── archs/   
     ├── images/
     ├── ieee/
     ├── Presentations/
@@ -23,8 +24,9 @@
     ├── uwthesis.cls
     └── Vedang_Final_Report.pdf
 ```
+* ```archs/```:  Deep detaied arch of the agent at endpoint covering complete security and enforcement over entire kernel datapath.
 * ```detailed/```: Covers Latex for the much detailed implemntation of the security freamework.
-* ```images/```: Results, Evaluation of the security freamework.
+* ```images/```: Results, Evaluation and the core architecture of security freamework, as explained in whitepaper.
 * ```ieee/```: Ieee Version for academic research conferences currently adhering to usenix IEEE latex style (Same research paper for the final thesis report in IEEE format).
 * ```Presentations/```: Covers all the presentations for all conference talks and final defense at university.
 * ```kernel_dns_sec_report.tex```: Final shortened Latex for the same report
